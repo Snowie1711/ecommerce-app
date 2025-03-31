@@ -153,6 +153,7 @@ def checkout():
                     # Log entire request data
                     current_app.logger.info('Full request data:')
                     current_app.logger.info(json.dumps(data, indent=2))
+
                     
                     # Update error context with request data
                     error_context.update({
@@ -225,24 +226,41 @@ def checkout():
                     if len(phone) < 10:
                         raise ValueError('Phone number must be at least 10 digits')
 
-                except ValueError as e:
-                    current_app.logger.error(f"Validation error: {str(e)}")
-                    # Build error response
-                    error_response = {
-                        'error': str(e),
-                        'status': 'validation_error',
-                        'context': {
-                            **error_context,
-                            'validation_message': str(e),
-                            'received_data': {
-                                'shipping_info': data.get('shipping_info'),
-                                'payment_method': data.get('payment_method')
+                except (ValueError, Exception) as e:
+                    current_app.logger.error(f"Error in JSON request: {str(e)}")
+                    
+                    if isinstance(e, ValueError):
+                        # Handle validation errors
+                        error_response = {
+                            'error': str(e),
+                            'status': 'validation_error',
+                            'context': {
+                                **error_context,
+                                'validation_message': str(e),
+                                'received_data': {
+                                    'shipping_info': data.get('shipping_info') if 'data' in locals() else None,
+                                    'payment_method': data.get('payment_method') if 'data' in locals() else None
+                                }
                             }
                         }
-                    }
-                    current_app.logger.error(f"Validation error details: {json.dumps(error_response, indent=2)}")
+                        status_code = 400
+                    else:
+                        # Handle server errors
+                        error_response = {
+                            'error': 'An unexpected error occurred',
+                            'status': 'server_error',
+                            'context': {
+                                **error_context,
+                                'error_details': str(e) if current_app.debug else None,
+                                'error_type': e.__class__.__name__
+                            }
+                        }
+                        status_code = 500
+                        current_app.logger.exception("Full traceback:")
+                    
+                    current_app.logger.error(f"Error details: {json.dumps(error_response, indent=2)}")
                     db.session.rollback()
-                    return jsonify(error_response), 400
+                    return jsonify(error_response), status_code
 
                 # All validation passed, proceed with order creation
                 billing_address = dict(shipping_info)
@@ -315,45 +333,6 @@ def checkout():
                         'order_id': order.id,
                         'redirect_url': url_for('auth.purchase_history')
                     })
-                    current_app.logger.error(f"Validation error: {str(e)}")
-                    
-                    # Build error response
-                    error_response = {
-                        'error': str(e),
-                        'status': 'validation_error',
-                        'context': {
-                            **error_context,
-                            'validation_message': str(e),
-                            'received_data': {
-                                'shipping_info': data.get('shipping_info'),
-                                'payment_method': data.get('payment_method')
-                            }
-                        }
-                    }
-                    
-                    current_app.logger.error(f"Validation error details: {json.dumps(error_response, indent=2)}")
-                    db.session.rollback()
-                    return jsonify(error_response), 400
-
-                except Exception as e:
-                    error_msg = str(e)
-                    error_details = {
-                        'error': 'An unexpected error occurred',
-                        'status': 'server_error',
-                        'context': {
-                            **error_context,
-                            'error_details': error_msg if current_app.debug else None,
-                            'error_type': e.__class__.__name__
-                        }
-                    }
-                    current_app.logger.error(f"Unexpected error details: {json.dumps(error_details, indent=2)}")
-                    current_app.logger.exception("Full traceback:")
-                    return jsonify(error_details), 500
-                    
-                # Prepare addresses from JSON data
-                shipping_address = shipping_info
-                billing_address = dict(shipping_info)
-                billing_address.pop('phone', None)
             else:
                 # Handle form data
                 payment_method = request.form.get('payment_method')
