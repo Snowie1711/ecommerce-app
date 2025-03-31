@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}Order #{{ order.id }} Details{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Order #{{ order.id }}</h2>
+        <a href="{{ url_for('orders.list_orders') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Orders
+        </a>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Order Items</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Price</th>
+                                    <th>Quantity</th>
+                                    <th class="text-right">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.items %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if item.product.image %}
+                                            <img src="{{ item.product.image }}" alt="{{ item.product.name }}" width="50" class="mr-3">
+                                            {% endif %}
+                                            <div>{{ item.product.name }}</div>
+                                        </div>
+                                    </td>
+                                    <td>{{ "{:,.0f}".format(item.price * 23000) }} VNĐ</td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td class="text-right">{{ "{:,.0f}".format(item.price * item.quantity * 23000) }} VNĐ</td>
+                                </tr>
+                                {% endfor %}
+                                <tr>
+                                    <td colspan="3" class="text-right font-weight-bold">Total:</td>
+                                    <td class="text-right font-weight-bold">{{ "{:,.0f}".format(order.total_amount * 23000) }} VNĐ</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Order Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Date:</strong> {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p>
+                        <strong>Status:</strong> 
+                        {% if order.status.name == 'PENDING' %}
+                            <span class="badge badge-warning">Pending</span>
+                        {% elif order.status.name == 'PAID' %}
+                            <span class="badge badge-success">Paid</span>
+                        {% elif order.status.name == 'SHIPPED' %}
+                            <span class="badge badge-info">Shipped</span>
+                        {% elif order.status.name == 'DELIVERED' %}
+                            <span class="badge badge-primary">Delivered</span>
+                        {% elif order.status.name == 'CANCELLED' %}
+                            <span class="badge badge-danger">Cancelled</span>
+                        {% else %}
+                            <span class="badge badge-secondary">{{ order.status.name }}</span>
+                        {% endif %}
+                    </p>
+                    {% if order.payment_id %}
+                    <p><strong>Payment ID:</strong> {{ order.payment_id }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Shipping Address</h5>
+                </div>
+                <div class="card-body">
+                    <address>
+                        {{ order.shipping_name }}<br>
+                        {{ order.shipping_address }}<br>
+                        {% if order.shipping_address2 %}
+                            {{ order.shipping_address2 }}<br>
+                        {% endif %}
+                        {{ order.shipping_city }}, {{ order.shipping_state }} {{ order.shipping_zip }}<br>
+                        {{ order.shipping_country }}<br>
+                        {% if order.shipping_phone %}
+                            <strong>Phone:</strong> {{ order.shipping_phone }}
+                        {% endif %}
+                    </address>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Your Orders{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h2>Your Orders</h2>
+    
+    <div class="my-4">
+        {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Order #</th>
+                            <th>Date</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>{{ order.id }}</td>
+                            <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ "{:,.0f}".format(order.total_amount * 23000) }} VNĐ</td>
+                            <td>
+                                {% if order.status.name == 'PENDING' %}
+                                    <span class="badge badge-warning">Pending</span>
+                                {% elif order.status.name == 'PAID' %}
+                                    <span class="badge badge-success">Paid</span>
+                                {% elif order.status.name == 'SHIPPED' %}
+                                    <span class="badge badge-info">Shipped</span>
+                                {% elif order.status.name == 'DELIVERED' %}
+                                    <span class="badge badge-primary">Delivered</span>
+                                {% elif order.status.name == 'CANCELLED' %}
+                                    <span class="badge badge-danger">Cancelled</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">{{ order.status.name }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('orders.order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <p>You don't have any orders yet.</p>
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-2">Continue Shopping</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

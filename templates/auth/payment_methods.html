@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Payment Methods{% endblock %}
+
+{% block content %}
+<div class="container max-w-2xl mx-auto">
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-2xl font-bold mb-6">Payment Methods</h2>
+        
+        {% if current_user.payment_method_id %}
+        <div class="mb-6 p-4 border rounded-lg">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="font-medium">Current Payment Method</p>
+                    <p class="text-gray-600">Type: {{ current_user.payment_provider }}</p>
+                </div>
+                <form action="{{ url_for('auth.remove_payment_method') }}" method="POST" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="text-red-600 hover:text-red-800">
+                        Remove
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="mb-6">
+            <h3 class="text-xl font-semibold mb-4">Add New Payment Method</h3>
+            <form action="{{ url_for('auth.add_payment_method') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="mb-4">
+                    <label for="payment_provider" class="block text-gray-700 font-medium mb-2">Payment Type</label>
+                    <select id="payment_provider" name="payment_provider" class="form-control" required>
+                        <option value="">Select payment type</option>
+                        <option value="credit_card">Credit Card</option>
+                        <option value="zalopay">ZaloPay</option>
+                    </select>
+                </div>
+
+                <!-- Credit Card Fields (shown/hidden based on selection) -->
+                <div id="credit_card_fields" class="hidden">
+                    <div class="mb-4">
+                        <label for="card_number" class="block text-gray-700 font-medium mb-2">Card Number</label>
+                        <div class="relative">
+                            <input type="text" id="card_number" name="card_number" class="form-control pr-10"
+                                   placeholder="**** **** **** ****" maxlength="19" autocomplete="cc-number">
+                            <div id="card_type_icon" class="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                <!-- Card type icon will be inserted here via JS -->
+                            </div>
+                        </div>
+                        <p id="card_validation_message" class="mt-1 text-sm hidden"></p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="cardholder_name" class="block text-gray-700 font-medium mb-2">Cardholder Name</label>
+                        <input type="text" id="cardholder_name" name="cardholder_name" class="form-control bg-gray-50"
+                               placeholder="Cardholder Name" readonly>
+                        <p class="mt-1 text-sm text-gray-500">This will be auto-filled when a valid card is entered</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="mb-4">
+                            <label for="expiry" class="block text-gray-700 font-medium mb-2">Expiry Date</label>
+                            <input type="text" id="expiry" name="expiry" class="form-control"
+                                   placeholder="MM/YY" maxlength="5" autocomplete="cc-exp">
+                        </div>
+                        <div class="mb-4">
+                            <label for="cvv" class="block text-gray-700 font-medium mb-2">CVV</label>
+                            <input type="password" id="cvv" name="cvv" class="form-control"
+                                   placeholder="***" maxlength="4" autocomplete="cc-csc">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ZaloPay Fields (shown/hidden based on selection) -->
+                <div id="zalopay_fields" class="hidden">
+                    <div class="mb-4">
+                        <label for="zalo_phone" class="block text-gray-700 font-medium mb-2">ZaloPay Phone Number</label>
+                        <input type="tel" id="zalo_phone" name="zalo_phone" class="form-control"
+                               placeholder="Enter your ZaloPay phone number" maxlength="10"
+                               pattern="[0-9]{10}" autocomplete="tel">
+                    </div>
+                </div>
+
+                <input type="hidden" name="payment_token" id="payment_token">
+                
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">
+                        Add Payment Method
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Include payment handling JavaScript -->
+<script src="{{ url_for('static', filename='js/payment.js') }}"></script>
+{% endblock %}

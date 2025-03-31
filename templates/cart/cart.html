@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping Cart{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <h1 class="text-2xl font-bold mb-8">Shopping Cart</h1>
+
+    {% if cart_items %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Cart Items -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow">
+                {% for item in cart_items %}
+                <div class="p-6 {% if not loop.last %}border-b border-gray-200{% endif %}">
+                    <div class="flex items-center space-x-4">
+                        <!-- Product Image -->
+                        <div class="flex-shrink-0 w-24 h-24">
+                            {% if item.product.image_url %}
+                            <img src="{{ url_for('static', filename='uploads/' + item.product.image_url) }}"
+                                 alt="{{ item.product.name }}"
+                                 class="w-full h-full object-cover rounded">
+                            {% else %}
+                            <div class="w-full h-full bg-gray-200 rounded flex items-center justify-center">
+                                <i class="fas fa-image text-gray-400 text-2xl"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Product Info -->
+                        <div class="flex-grow">
+                            <h3 class="text-lg font-semibold">
+                                <a href="{{ url_for('products.detail', id=item.product.id) }}"
+                                   class="text-gray-900 hover:text-blue-600">
+                                    {{ item.product.name }}
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-2">SKU: {{ item.product.sku }}</p>
+                            <p class="text-blue-600 font-bold">{{ "{:,.0f}".format(item.product.price * 23000) }} VNĐ</p>
+                        </div>
+
+                        <!-- Quantity Controls -->
+                        <div class="flex items-center space-x-4">
+                            <form action="{{ url_for('cart.update_cart', product_id=item.product.id) }}" 
+                                  method="POST"
+                                  class="flex items-center space-x-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="quantity" 
+                                        class="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                                        onchange="this.form.submit()">
+                                    {% for i in range(1, item.product.stock + 1) %}
+                                    <option value="{{ i }}" {% if i == item.quantity %}selected{% endif %}>
+                                        {{ i }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+
+                            <!-- Subtotal -->
+                            <div class="text-gray-900 font-semibold w-24 text-right">
+                                {{ "{:,.0f}".format(item.subtotal * 23000) }} VNĐ
+                            </div>
+
+                            <!-- Remove Button -->
+                            <form action="{{ url_for('cart.remove_from_cart', product_id=item.product.id) }}" 
+                                  method="POST"
+                                  class="flex-shrink-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" 
+                                        class="text-red-600 hover:text-red-800"
+                                        onclick="return confirm('Are you sure you want to remove this item?')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-lg shadow p-6 sticky top-8">
+                <h2 class="text-xl font-bold mb-6">Order Summary</h2>
+
+                <div class="space-y-4 mb-6">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Subtotal</span>
+                        <span class="font-semibold">{{ "{:,.0f}".format(total) }} VNĐ</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Shipping</span>
+                        <span class="font-semibold">
+                            {% if total >= 1150000 %}
+                            Miễn phí
+                            {% else %}
+                            115,000 VNĐ
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="border-t border-gray-200 pt-4">
+                        <div class="flex justify-between">
+                            <span class="text-lg font-bold">Total</span>
+                            <span class="text-lg font-bold">
+                                {{ "{:,.0f}".format(total if total >= 1150000 else total + 115000) }} VNĐ
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-2">
+                            {% if total < 1150000 %}
+                            Thêm {{ "{:,.0f}".format(1150000 - total) }} VNĐ để được miễn phí vận chuyển!
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('cart.checkout') }}"
+                   class="block w-full bg-blue-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                    Proceed to Checkout
+                </a>
+
+                <a href="{{ url_for('products.index') }}"
+                   class="block w-full text-center mt-4 text-blue-600 hover:text-blue-800">
+                    Continue Shopping
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <div class="mb-6">
+            <i class="fas fa-shopping-cart text-gray-400 text-6xl"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h2>
+        <p class="text-gray-600 mb-4">Please add items to your cart before proceeding with ZaloPay or other payment methods.</p>
+        <div class="flex flex-col items-center space-y-4">
+            <p class="text-gray-500 text-sm max-w-md">To use ZaloPay, you'll need to add products to your cart first. This ensures a smooth checkout process.</p>
+            <a href="{{ url_for('products.index') }}"
+               class="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                Browse Products
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

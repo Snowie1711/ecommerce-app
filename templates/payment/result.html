@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if status == 'success' %}Payment Successful{% else %}Payment Failed{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+        {% if status == 'success' %}
+        <div class="bg-green-100 p-6">
+            <div class="flex items-center justify-center">
+                <svg class="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h1 class="text-center text-2xl font-bold text-green-800 mt-4">Payment Successful!</h1>
+        </div>
+        <div class="p-6">
+            <p class="text-gray-600 text-center mb-6">
+                Thank you for your payment. Your order has been successfully processed.
+            </p>
+            <div class="bg-gray-50 rounded p-4 mb-6">
+                <p class="text-sm text-gray-600 mb-2">
+                    <span class="font-semibold">Order ID:</span> 
+                    <span class="font-mono">{{ transaction_id }}</span>
+                </p>
+            </div>
+            <div class="text-center">
+                <a href="/orders" class="inline-block bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition duration-200">
+                    View Order History
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-red-100 p-6">
+            <div class="flex items-center justify-center">
+                <svg class="h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h1 class="text-center text-2xl font-bold text-red-800 mt-4">Payment Failed</h1>
+        </div>
+        <div class="p-6">
+            <p class="text-gray-600 text-center mb-6">
+                {% if error_message %}
+                {{ error_message }}
+                {% else %}
+                Sorry, your payment could not be processed. Please try again.
+                {% endif %}
+            </p>
+            {% if transaction_id %}
+            <div class="bg-gray-50 rounded p-4 mb-6">
+                <p class="text-sm text-gray-600 mb-2">
+                    <span class="font-semibold">Order ID:</span>
+                    <span class="font-mono">{{ transaction_id }}</span>
+                </p>
+                {% if error %}
+                <p class="text-sm text-red-600">
+                    <span class="font-semibold">Error Code:</span> {{ error }}
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
+            <div class="text-center space-y-4">
+                <a href="/cart" class="inline-block bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition duration-200">
+                    Return to Cart
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

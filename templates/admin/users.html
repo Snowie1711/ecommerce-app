@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users - Admin{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-6">
+    <h1 class="text-3xl font-bold mb-6">Manage Users</h1>
+
+    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for user in users.items %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ user.id }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ user.username }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ user.email }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if user.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ 'Active' if user.is_active else 'Inactive' }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if user.is_admin %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ 'Admin' if user.is_admin else 'User' }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <div class="flex space-x-4">
+                            <button onclick="toggleUserStatus({{ user.id }})"
+                                    class="text-indigo-600 hover:text-indigo-900">
+                                {{ 'Deactivate' if user.is_active else 'Activate' }}
+                            </button>
+                            <button onclick="showPasswordModal({{ user.id }}, '{{ user.username }}')"
+                                    class="text-blue-600 hover:text-blue-900">
+                                Change Password
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if users.pages > 1 %}
+    <div class="flex justify-center mt-6">
+        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            {% if users.has_prev %}
+            <a href="{{ url_for('admin.manage_users', page=users.prev_num) }}" 
+               class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Previous
+            </a>
+            {% endif %}
+            
+            {% for page_num in users.iter_pages() %}
+                {% if page_num %}
+                    <a href="{{ url_for('admin.manage_users', page=page_num) }}"
+                       class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium {% if page_num == users.page %}text-indigo-600 bg-indigo-50{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                        {{ page_num }}
+                    </a>
+                {% else %}
+                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                        ...
+                    </span>
+                {% endif %}
+            {% endfor %}
+            
+            {% if users.has_next %}
+            <a href="{{ url_for('admin.manage_users', page=users.next_num) }}"
+               class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Next
+            </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Password Change Modal -->
+<div id="passwordModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden items-center justify-center">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+        <h2 class="text-xl font-bold mb-4">Change Password for <span id="modalUsername"></span></h2>
+        <form id="passwordForm" onsubmit="updatePassword(event)" class="space-y-4">
+            <input type="hidden" id="userId" name="userId">
+            <div>
+                <label for="newPassword" class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input type="password"
+                       id="newPassword"
+                       name="newPassword"
+                       required
+                       minlength="6"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <input type="password"
+                       id="confirmPassword"
+                       name="confirmPassword"
+                       required
+                       minlength="6"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button"
+                        onclick="hidePasswordModal()"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    Update Password
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleUserStatus(userId) {
+    fetch(`/admin/users/${userId}/toggle-status`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            location.reload();
+        } else {
+            alert('Error updating user status');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating user status');
+    });
+}
+
+function showPasswordModal(userId, username) {
+    document.getElementById('userId').value = userId;
+    document.getElementById('modalUsername').textContent = username;
+    document.getElementById('passwordModal').classList.remove('hidden');
+    document.getElementById('passwordModal').classList.add('flex');
+    document.getElementById('newPassword').focus();
+}
+
+function hidePasswordModal() {
+    document.getElementById('passwordModal').classList.add('hidden');
+    document.getElementById('passwordModal').classList.remove('flex');
+    document.getElementById('passwordForm').reset();
+}
+
+function updatePassword(event) {
+    event.preventDefault();
+    
+    const userId = document.getElementById('userId').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+
+    if (newPassword !== confirmPassword) {
+        alert('Passwords do not match');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        alert('Password must be at least 6 characters long');
+        return;
+    }
+
+    fetch(`/admin/users/${userId}/update-password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({
+            password: newPassword
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('Password updated successfully');
+            hidePasswordModal();
+        } else {
+            alert(data.message || 'Error updating password');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating password');
+    });
+}
+
+// Close modal when clicking outside
+document.getElementById('passwordModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hidePasswordModal();
+    }
+});
+</script>
+{% endblock %}

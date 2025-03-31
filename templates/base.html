@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}E-Commerce Store{% endblock %}</title>
+    
+    {% if config['ENV'] == 'production' %}
+        <!-- Production: Built Tailwind CSS -->
+        <link href="{{ url_for('static', filename='css/main.css') }}" rel="stylesheet">
+    {% else %}
+        <!-- Development: Tailwind CDN with warning suppression -->
+        <script>
+            // Suppress Tailwind CDN warning in development
+            console.warn = (function(originalWarn) {
+                return function(msg) {
+                    if (msg.includes('cdn.tailwindcss.com')) return;
+                    originalWarn.apply(console, arguments);
+                }
+            })(console.warn);
+        </script>
+        <script src="https://cdn.tailwindcss.com"></script>
+    {% endif %}
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <style>
+        /* Search Results Styles */
+        #search-results {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+        }
+        
+        #search-results::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        #search-results::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        #search-results::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 2px;
+        }
+        
+        #search-results::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="min-h-screen bg-gray-100">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <!-- Logo -->
+                    <div class="flex-shrink-0 flex items-center">
+                        <a href="{{ url_for('main.home') }}" class="text-xl font-bold text-blue-600">
+                            E-Commerce
+                        </a>
+                    </div>
+                    
+                    <!-- Navigation Links -->
+                    <div class="hidden md:ml-6 md:flex md:space-x-8">
+                        <a href="{{ url_for('products.index') }}"
+                           class="inline-flex items-center px-1 pt-1 text-gray-700 hover:text-blue-600">
+                            Products
+                        </a>
+                        {% if current_user.is_authenticated %}
+                            <a href="{{ url_for('cart.view_cart') }}"
+                               class="inline-flex items-center px-1 pt-1 text-gray-700 hover:text-blue-600">
+                                Cart
+                            </a>
+                        {% endif %}
+                        {% if current_user.is_admin %}
+                            <a href="{{ url_for('admin.dashboard') }}"
+                               class="inline-flex items-center px-1 pt-1 text-gray-700 hover:text-blue-600">
+                                Admin
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="flex-1 flex items-center justify-center px-4">
+                    <div class="w-full max-w-lg">
+                        <div class="relative">
+                            <input type="text" id="search-input"
+                                class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500"
+                                placeholder="Search products...">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-search text-gray-500"></i>
+                            </div>
+                        </div>
+                        <div id="search-results" class="absolute z-50 w-full max-w-lg bg-white mt-1 rounded-lg shadow-lg hidden">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Menu -->
+                <div class="flex items-center">
+                    {% if current_user.is_authenticated %}
+                        <div class="ml-3 relative">
+                            <div class="dropdown">
+                                <button class="flex text-gray-700 hover:text-blue-600" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span class="mr-2">{{ current_user.email }}</span>
+                                    <i class="fas fa-user-circle text-xl"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                                    <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    {% else %}
+                        <a href="{{ url_for('auth.login') }}"
+                           class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
+                            Login
+                        </a>
+                        <a href="{{ url_for('auth.register') }}"
+                           class="ml-4 bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+                            Register
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="max-w-7xl mx-auto px-4 mt-4">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white shadow-inner mt-8">
+        <div class="max-w-7xl mx-auto py-6 px-4">
+            <div class="flex justify-between items-center">
+                <div class="text-gray-600">
+                    © {{ current_year }} E-Commerce Store. All rights reserved.
+                </div>
+                <div class="flex space-x-6">
+                    <a href="#" class="text-gray-600 hover:text-blue-600">
+                        <i class="fab fa-facebook"></i>
+                    </a>
+                    <a href="#" class="text-gray-600 hover:text-blue-600">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                    <a href="#" class="text-gray-600 hover:text-blue-600">
+                        <i class="fab fa-instagram"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- jQuery (for AJAX requests) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script>
+        // Flash message auto-dismiss
+        window.setTimeout(function() {
+            $(".alert").fadeTo(500, 0).slideUp(500, function() {
+                $(this).remove();
+            });
+        }, 3000);
+    </script>
+    
+    <!-- Search functionality -->
+    <script src="{{ url_for('static', filename='js/search.js') }}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

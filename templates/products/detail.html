@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <nav class="mb-8" aria-label="Breadcrumb">
+        <ol class="flex space-x-2 text-gray-600">
+            <li><a href="{{ url_for('main.home') }}" class="hover:text-blue-600">Home</a></li>
+            <li><span class="mx-2">/</span></li>
+            <li><a href="{{ url_for('products.index') }}" class="hover:text-blue-600">Products</a></li>
+            <li><span class="mx-2">/</span></li>
+            <li><a href="{{ url_for('products.index', category=product.category.name) }}" class="hover:text-blue-600">{{ product.category.name }}</a></li>
+            <li><span class="mx-2">/</span></li>
+            <li class="text-gray-900 font-semibold">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 p-8">
+            <!-- Product Images -->
+            <div class="space-y-4">
+                <!-- Main Image Display -->
+                <div class="relative main-image-container">
+                    {% if product.images %}
+                        {% set main_image = product.primary_image or product.images[0] %}
+                        <img src="{{ url_for('static', filename='uploads/' + main_image.image_url) }}"
+                             alt="{{ product.name }}"
+                             id="mainImage"
+                             class="w-full h-96 object-cover rounded-lg cursor-pointer">
+                    {% elif product.image_url %}
+                        <img src="{{ url_for('static', filename='uploads/' + product.image_url) }}"
+                             alt="{{ product.name }}"
+                             class="w-full h-96 object-cover rounded-lg">
+                    {% else %}
+                        <div class="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-image text-gray-400 text-6xl"></i>
+                        </div>
+                    {% endif %}
+                    
+                    {% if not product.is_active %}
+                        <div class="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-full">
+                            Discontinued
+                        </div>
+                    {% elif product.stock < 10 and product.stock > 0 %}
+                        <div class="absolute top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-full">
+                            Low Stock
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Thumbnails -->
+                {% if product.images and product.images|length > 1 %}
+                <div class="grid grid-cols-5 gap-2 mt-4">
+                    {% for image in product.images %}
+                    <div class="thumbnail-container cursor-pointer {% if loop.first %}border-2 border-blue-500{% endif %}"
+                         onclick="switchMainImage('{{ url_for('static', filename='uploads/' + image.image_url) }}', this)">
+                        <img src="{{ url_for('static', filename='uploads/' + image.image_url) }}"
+                             alt="{{ product.name }} - Image {{ loop.index }}"
+                             class="w-full aspect-square object-cover rounded-lg hover:opacity-75 transition-opacity">
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Product Info -->
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ product.name }}</h1>
+                
+                <div class="mb-6">
+                    <div class="text-2xl font-bold text-blue-600 mb-2">{{ "{:,.0f}".format(product.price * 23000) }} VNĐ</div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-gray-600">SKU: {{ product.sku }}</span>
+                        <span class="text-gray-600">Category:
+                            <a href="{{ url_for('products.index', category=product.category.name) }}"
+                               class="text-blue-600 hover:text-blue-800">
+                                {{ product.category.name }}
+                            </a>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="prose max-w-none mb-8">
+                    <p class="text-gray-700">{{ product.description }}</p>
+                </div>
+
+                <!-- Stock Status -->
+                <div class="mb-8">
+                    {% if product.stock > 0 %}
+                    <div class="flex items-center text-green-600 mb-4">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        <span>In Stock ({{ product.stock }} available)</span>
+                    </div>
+                    {% else %}
+                    <div class="flex items-center text-red-600 mb-4">
+                        <i class="fas fa-times-circle mr-2"></i>
+                        <span>Out of Stock</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if product.is_active and product.stock > 0 %}
+                <!-- Add to Cart Form -->
+                <form action="{{ url_for('cart.add_to_cart', product_id=product.id) }}" method="POST" class="mb-8">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="flex items-center space-x-4 mb-4">
+                        <label for="quantity" class="text-gray-700 font-semibold">Quantity:</label>
+                        <select id="quantity" 
+                                name="quantity" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                            {% for i in range(1, min(product.stock + 1, 11)) %}
+                            <option value="{{ i }}">{{ i }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit"
+                            class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                        <i class="fas fa-shopping-cart mr-2"></i>
+                        Add to Cart
+                    </button>
+                </form>
+                {% endif %}
+
+                <!-- Additional Info -->
+                <div class="border-t border-gray-200 pt-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Shipping Info -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Shipping Information</h3>
+                            <ul class="space-y-2 text-gray-600">
+                                <li class="flex items-center">
+                                    <i class="fas fa-truck mr-2"></i>
+                                    Miễn phí vận chuyển cho đơn hàng trên 1,150,000 VNĐ
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-clock mr-2"></i>
+                                    Delivery within 3-5 business days
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Return Policy -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Return Policy</h3>
+                            <ul class="space-y-2 text-gray-600">
+                                <li class="flex items-center">
+                                    <i class="fas fa-undo mr-2"></i>
+                                    30-day return policy
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-shield-alt mr-2"></i>
+                                    Money-back guarantee
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
+    <div class="max-w-4xl w-full mx-4">
+        <div class="relative">
+            <img id="modalImage" src="" alt="" class="w-full object-contain max-h-[80vh]">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-white text-xl hover:text-gray-300">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Handle quantity changes
+    document.getElementById('quantity').addEventListener('change', function() {
+        if (this.value > {{ product.stock }}) {
+            alert('Selected quantity exceeds available stock');
+            this.value = {{ product.stock }};
+        }
+    });
+
+    // Image gallery functionality
+    function switchMainImage(imageUrl, thumbnailElement) {
+        document.getElementById('mainImage').src = imageUrl;
+        // Update thumbnail highlighting
+        document.querySelectorAll('.thumbnail-container').forEach(container => {
+            container.classList.remove('border-2', 'border-blue-500');
+        });
+        thumbnailElement.classList.add('border-2', 'border-blue-500');
+    }
+
+    // Image modal functionality
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    const mainImage = document.getElementById('mainImage');
+
+    if (mainImage) {
+        mainImage.addEventListener('click', function() {
+            modalImage.src = this.src;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        });
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    // Close modal on background click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+</script>
+{% endblock %}

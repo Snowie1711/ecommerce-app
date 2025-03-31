@@ -1,0 +1,178 @@
+from flask import Blueprint, render_template, request, jsonify, current_app
+from flask_wtf.csrf import csrf_protected, generate_csrf
+from models.order import Order, OrderStatus
+from models import db
+from models.cart import Cart
+import json
+from payment_providers.zalopay import ZaloPayAPI
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+payment = Blueprint('payment', __name__)
+
+def get_zalopay_api():
+    """Get or create ZaloPayAPI instance"""
+    if not hasattr(get_zalopay_api, '_api'):
+        get_zalopay_api._api = ZaloPayAPI()
+    return get_zalopay_api._api
+
+@payment.route('/create-payment', methods=['POST'])
+@csrf_protected
+def create_payment():
+    try:
+        # Log request details
+        current_app.logger.info(f"""
+        Payment Request:
+        Headers: {dict(request.headers)}
+        Form: {dict(request.form)}
+        JSON: {request.get_json(silent=True)}
+        """)
+
+        # Validate request
+        if not request.is_json:
+            return jsonify({"success": False, "error": "Invalid request format"}), 400
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "No payment data provided"}), 400
+
+        # Required fields validation
+        required_fields = ['order_id', 'amount']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+
+        try:
+            # Ensure amount is a valid integer in VND
+            amount_vnd = data['amount']
+            if isinstance(amount_vnd, str):
+                # Remove " VND" suffix and commas if present
+                amount_vnd = amount_vnd.replace(' VND', '').replace(',', '')
+            
+            amount_vnd = int(float(amount_vnd))
+            order_id = int(data['order_id'])
+
+            # Create ZaloPay payment
+            api = get_zalopay_api()
+            result = api.create_payment(order_id, amount_vnd)
+            
+            if not result.get('success'):
+                return jsonify(result), 400
+                
+            return jsonify(result)
+
+        except (ValueError, TypeError) as e:
+            current_app.logger.error(f"Invalid data format: {str(e)}")
+            return jsonify({
+                "success": False,
+                "error": "Invalid data format"
+            }), 400
+
+    except Exception as e:
+        current_app.logger.error(f"Payment error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "Lỗi hệ thống",
+            "details": str(e)
+        }), 500
+
+@payment.route('/callback', methods=['POST'])
+def callback():
+    result = {"return_code": 0, "return_message": "Unknown error"}
+    try:
+        cbdata = request.json
+        api = get_zalopay_api()
+        
+        # Verify callback signature
+        if not api.verify_callback(cbdata):
+            result['return_code'] = -1
+            result['return_message'] = 'Invalid signature'
+            current_app.logger.error('Payment callback: Signature verification failed')
+            return jsonify(result)
+
+        data_json = json.loads(cbdata['data'])
+        app_trans_id = data_json.get('app_trans_id', '')
+        
+        # Extract order ID from app_trans_id (format: timestamp_orderid)
+        try:
+            order_id = int(app_trans_id.split('_')[1])
+        except (IndexError, ValueError):
+            result['return_code'] = -1
+            result['return_message'] = 'Invalid transaction ID format'
+            current_app.logger.error(f'Payment callback: Invalid transaction ID format: {app_trans_id}')
+            return jsonify(result)
+
+        # Get order from database
+        order = Order.query.get(order_id)
+        if not order:
+            result['return_code'] = -1
+            result['return_message'] = 'Order not found'
+            current_app.logger.error(f'Payment callback: Order not found: {order_id}')
+            return jsonify(result)
+
+        # Update order status based on payment response
+        if data_json.get('return_code') == 1:  # Success
+            order.status = OrderStatus.PAID
+            order.payment_id = app_trans_id
+            
+            # Update product stock levels
+            for item in order.items:
+                item.product.stock -= item.quantity
+                if item.product.stock < 0:
+                    current_app.logger.warning(f'Negative stock for product {item.product.id} after order {order_id}')
+            
+            # Clear user's cart after successful payment
+            Cart.clear_cart(order.user_id)
+            
+            current_app.logger.info(f'Payment successful for order {order_id}, stock updated')
+        else:  # Failed
+            order.status = OrderStatus.CANCELLED
+            current_app.logger.warning(f'Payment failed for order {order_id}: {data_json.get("return_message")}')
+
+        db.session.commit()
+        result['return_code'] = 1
+        result['return_message'] = 'success'
+
+    except Exception as e:
+        current_app.logger.exception('Payment callback error')
+        result['return_code'] = 0
+        result['return_message'] = str(e)
+
+    return jsonify(result)
+
+@payment.route('/query-order/<app_trans_id>')
+def query_order(app_trans_id):
+    try:
+        api = get_zalopay_api()
+        result = api.query_transaction(app_trans_id)
+        return jsonify(result)
+    except Exception as e:
+        current_app.logger.error(f"Error querying order status: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@payment.route('/payment-result')
+@payment.route('/payment/payment-result')  # Support both URL patterns
+def payment_result():
+    current_app.logger.info("Payment result route accessed")
+    
+    # Get status parameter if available
+    status = request.args.get('status', 'unknown')
+    transaction_id = request.args.get('transaction_id', '')
+    
+    # Get error info if present
+    error = request.args.get('error', '')
+    error_message = request.args.get('error_message', '')
+    
+    if error:
+        current_app.logger.error(f"Payment error: {error} - {error_message}")
+
+    return render_template('payment/result.html',
+                         status=status,
+                         transaction_id=transaction_id,
+                         error=error,
+                         error_message=error_message)
