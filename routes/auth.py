@@ -49,7 +49,7 @@ def register():
         # Create new user
         user = User(
             email=email,
-            password=generate_password_hash(password)
+            password=password  # Password will be hashed by User model
         )
         
         try:
@@ -78,7 +78,7 @@ def login():
         
         user = User.query.filter_by(email=email).first()
         
-        if not user or not check_password_hash(user.password, password):
+        if not user or not user.verify_password(password):
             flash('Invalid email or password', 'error')
             return redirect(url_for('auth.login'))
         
@@ -118,7 +118,7 @@ def profile():
         new_password = request.form.get('new_password')
         if new_password:
             current_password = request.form.get('current_password')
-            if not check_password_hash(current_user.password, current_password):
+            if not current_user.verify_password(current_password):
                 flash('Current password is incorrect', 'error')
                 return redirect(url_for('auth.profile'))
             
@@ -126,7 +126,7 @@ def profile():
                 flash('New password must be at least 8 characters long', 'error')
                 return redirect(url_for('auth.profile'))
                 
-            current_user.password = generate_password_hash(new_password)
+            current_user.password = new_password  # Will be hashed by User model
         
         try:
             db.session.commit()

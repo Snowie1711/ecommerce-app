@@ -112,16 +112,8 @@ def checkout():
                 flash('Your cart is empty', 'error')
                 return redirect(url_for('cart.view_cart'))
 
-            # Calculate totals in USD
-            subtotal_usd = sum(item.subtotal for item in cart_items)
-            total_usd = subtotal_usd
-            
-            # Add shipping if needed
-            if (subtotal_usd * 23000) < 1150000:  # Free shipping threshold in VND
-                total_usd += 5  # $5 USD shipping
-                
-            # Convert to VND for display
-            cart_total_vnd = int(round(total_usd * 23000, -3))
+            # Get cart total (already includes shipping if needed)
+            cart_total_vnd = Cart.get_cart_total(current_user.id)
             
             # Validate amount isn't too high
             if cart_total_vnd > 100000000:  # 100M VND limit
@@ -131,7 +123,6 @@ def checkout():
             current_app.logger.info(f"""
             Cart Details:
             - Items: {len(cart_items)}
-            - Subtotal (USD): ${subtotal_usd:,.2f}
             - Total (VND): {cart_total_vnd:,}
             """)
 
@@ -307,9 +298,14 @@ def checkout():
                     from routes.payment import get_payos_api
                     payos_api = get_payos_api()
                     
+                    # Convert amount to integer for PayOS
+                    amount_int = int(round(cart_total_vnd))
+                    
+                    current_app.logger.info(f"Converting amount {cart_total_vnd} to integer: {amount_int}")
+                    
                     payment_result = payos_api.create_payment(
                         str(order.id),
-                        cart_total_vnd,
+                        amount_int,
                         f"Payment for order #{order.id}"
                     )
                     
@@ -474,9 +470,14 @@ def checkout():
                     - Amount (VND): {cart_total_vnd:,}
                     """)
                     
+                    # Convert amount to integer for PayOS
+                    amount_int = int(round(cart_total_vnd))
+                    
+                    current_app.logger.info(f"Converting amount {cart_total_vnd} to integer: {amount_int}")
+                    
                     payment_result = payos_api.create_payment(
-                        str(order.id), 
-                        cart_total_vnd,
+                        str(order.id),
+                        amount_int,
                         f"Payment for order #{order.id}"
                     )
                     
@@ -531,31 +532,24 @@ def checkout():
                 error_msg = 'An unexpected error occurred. Please try again.'
                 
             current_app.logger.error(f"Cart total VND: {cart_total_vnd}")
-            current_app.logger.error(f"Payment method: {payment_method}")
             current_app.logger.error(f"Form data: {request.form}")
             
             db.session.rollback()
             
             if request.headers.get('Accept') == 'application/json':
+                error_details = {'total': cart_total_vnd}
+                if 'payment_method' in locals():
+                    error_details['payment_method'] = payment_method
                 return jsonify({
                     'error': error_msg,
-                    'details': {
-                        'total': cart_total_vnd,
-                        'payment_method': payment_method
-                    }
+                    'details': error_details
                 }), 500
             
             flash(error_msg, 'error')
             return redirect(url_for('cart.checkout'))
     
-    # Calculate cart total for display
-    subtotal_usd = sum(item.subtotal for item in cart_items)
-    cart_total_vnd = int(round(subtotal_usd * 23000, -3))
-    
-    # Add shipping if needed
-    if cart_total_vnd < 1150000:
-        cart_total_vnd += 115000
-        
+    # Get cart total (already includes shipping from Cart.get_cart_total)
+    cart_total_vnd = Cart.get_cart_total(current_user.id)
     return render_template('cart/checkout.html', cart_items=cart_items, total=cart_total_vnd)
 
 # API endpoints

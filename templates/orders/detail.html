@@ -45,9 +45,17 @@
                                 </tr>
                                 {% endfor %}
                                 <tr>
-                                    <td colspan="3" class="text-right font-weight-bold">Total:</td>
-                                    <td class="text-right font-weight-bold">{{ "{:,.0f}".format(order.total_amount * 23000) }} VNĐ</td>
+                                    <td colspan="3" class="text-right font-weight-bold">Subtotal:</td>
+                                    <td class="text-right font-weight-bold">{{ "{:,.0f}".format(order.total_amount - 115000) }} VNĐ</td>
                                 </tr>
+                                <tr>
+                                    <td colspan="3" class="text-right">Shipping:</td>
+                                    <td class="text-right">115,000 VNĐ</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="3" class="text-right font-weight-bold">Total:</td>
+                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>

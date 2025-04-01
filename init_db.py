@@ -113,7 +113,7 @@ def init_db():
             admin = User(
                 email='admin@example.com',
                 username='admin',
-                password='admin123',  # Will be hashed by the model
+                password='Admin@123',  # Will be hashed by User model's setter
                 first_name='Admin',
                 last_name='User',
                 is_admin=True
@@ -125,7 +125,7 @@ def init_db():
             user = User(
                 email='user@example.com',
                 username='testuser',
-                password='test123',  # Will be hashed by the model
+                password='Test@123',  # Will be hashed by User model's setter
                 first_name='Test',
                 last_name='User'
             )
