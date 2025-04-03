@@ -17,11 +17,25 @@ def allowed_file(filename):
 def save_image(file):
     """Helper function to save an image and return the filename"""
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{filename}"
-        file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-        return filename
+        try:
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"{timestamp}_{filename}"
+            filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+            
+            # Ensure upload directory exists
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            
+            # Save the file
+            file.save(filepath)
+            
+            # Set proper permissions
+            os.chmod(filepath, 0o644)
+            
+            return filename
+        except Exception as e:
+            current_app.logger.error(f"Error saving image: {str(e)}")
+            return None
     return None
 
 def handle_product_images(product, files, existing_primary=None):
@@ -86,11 +100,11 @@ def get_filtered_query(
     if search:
         search_terms = search.split()
         for term in search_terms:
-            search_term = f'%{term}%'
+            search_term = f'%{term.lower()}%'
             query = query.filter(
                 or_(
-                    db.func.lower(Product.name).like(db.func.lower(search_term)),
-                    db.func.lower(Product.description).like(db.func.lower(search_term))
+                    Product.name.ilike(search_term),
+                    Product.description.ilike(search_term)
                 )
             )
     
@@ -181,11 +195,27 @@ def category_view(category_name):
 
 @products_bp.route('/<int:id>')
 def detail(id):
-    product = Product.query.options(
-        db.joinedload(Product.category),
-        db.joinedload(Product.images)
-    ).get_or_404(id)
-    return render_template('products/detail.html', product=product)
+    # Get product with category and images
+    try:
+        # Only allow viewing active products for non-admin users
+        query = Product.query
+        if not (current_user.is_authenticated and current_user.is_admin):
+            query = query.filter_by(is_active=True)
+            
+        product = query.options(
+            db.joinedload(Product.category),
+            db.joinedload(Product.images)
+        ).get_or_404(id, description='The product you are looking for may have been removed or is no longer available. Please try searching for similar products.')
+        
+        # Check if product is active or if user is admin
+        if not product.is_active and (not current_user.is_authenticated or not current_user.is_admin):
+            flash('This product is no longer available. Please check our other products.', 'error')
+            return redirect(url_for('products.index'))
+            
+        return render_template('products/detail.html', product=product)
+    except Exception as e:
+        current_app.logger.error(f"Error accessing product {id}: {str(e)}")
+        raise
 
 @products_bp.route('/admin/products')
 @login_required
@@ -247,7 +277,7 @@ def create_product():
         product = Product(
             name=data['name'],
             description=data['description'],
-            price=float(data['price']),
+            price=int(float(data['price'])),  # Convert to int for VND (no decimals)
             stock=int(data['stock']),
             category_id=int(data['category_id']),
             sku=data['sku'],
@@ -282,7 +312,7 @@ def edit_product(id):
         
         product.name = data['name']
         product.description = data['description']
-        product.price = float(data['price'])
+        product.price = int(float(data['price']))  # Convert to int for VND (no decimals)
         product.stock = int(data['stock'])
         product.category_id = int(data['category_id'])
         product.sku = data['sku']

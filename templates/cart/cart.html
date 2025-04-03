@@ -36,7 +36,7 @@
                                 </a>
                             </h3>
                             <p class="text-gray-600 text-sm mb-2">SKU: {{ item.product.sku }}</p>
-                            <p class="text-blue-600 font-bold">{{ "{:,.0f}".format(item.product.price * 23000) }} VNĐ</p>
+                            <p class="text-blue-600 font-bold">{{ item.product.price_display }}₫</p>
                         </div>
 
                         <!-- Quantity Controls -->
@@ -58,7 +58,7 @@
 
                             <!-- Subtotal -->
                             <div class="text-gray-900 font-semibold w-24 text-right">
-                                {{ "{:,.0f}".format(item.subtotal * 23000) }} VNĐ
+                                {{ "{:,.0f}".format(item.subtotal) }}₫
                             </div>
 
                             <!-- Remove Button -->
@@ -87,15 +87,15 @@
                 <div class="space-y-4 mb-6">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Subtotal</span>
-                        <span class="font-semibold">{{ "{:,.0f}".format(total) }} VNĐ</span>
+                        <span class="font-semibold">{{ "{:,.0f}".format(subtotal) }}₫</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Shipping</span>
                         <span class="font-semibold">
-                            {% if total >= 1150000 %}
-                            Miễn phí
+                            {% if shipping_cost == 0 %}
+                            Free
                             {% else %}
-                            115,000 VNĐ
+                            {{ "{:,.0f}".format(shipping_cost) }}₫
                             {% endif %}
                         </span>
                     </div>
@@ -103,12 +103,12 @@
                         <div class="flex justify-between">
                             <span class="text-lg font-bold">Total</span>
                             <span class="text-lg font-bold">
-                                {{ "{:,.0f}".format(total if total >= 1150000 else total + 115000) }} VNĐ
+                                {{ "{:,.0f}".format(total) }}₫
                             </span>
                         </div>
                         <p class="text-sm text-gray-500 mt-2">
-                            {% if total < 1150000 %}
-                            Thêm {{ "{:,.0f}".format(1150000 - total) }} VNĐ để được miễn phí vận chuyển!
+                            {% if shipping_cost > 0 %}
+                            Add {{ "{:,.0f}".format(1000000 - subtotal) }}₫ more to get free shipping!
                             {% endif %}
                         </p>
                     </div>
@@ -143,4 +143,32 @@
     </div>
     {% endif %}
 </div>
+{% block extra_js %}
+<script>
+// Update all cart forms to dispatch cartUpdated event
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        const formAction = this.getAttribute('action');
+        if (formAction && (formAction.includes('update_cart') || formAction.includes('remove_from_cart'))) {
+            // Let the form submit complete
+            setTimeout(() => {
+                // Dispatch cartUpdated event
+                document.dispatchEvent(new CustomEvent('cartUpdated'));
+            }, 100);
+        }
+    });
+});
+
+// Handle quantity select changes
+document.querySelectorAll('select[name="quantity"]').forEach(select => {
+    select.addEventListener('change', function() {
+        // Let the form submit complete
+        setTimeout(() => {
+            // Dispatch cartUpdated event
+            document.dispatchEvent(new CustomEvent('cartUpdated'));
+        }, 100);
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}

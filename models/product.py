@@ -8,7 +8,8 @@ class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    price = db.Column(db.Float, nullable=False)
+    # Price in VND (Vietnamese Dong)
+    price = db.Column(db.Integer, nullable=False)
     stock = db.Column(db.Integer, default=0)
     image_url = db.Column(db.String(500))  # Kept for backward compatibility
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
@@ -35,6 +36,15 @@ class Product(db.Model):
             primary = next((img for img in self.images if img.is_primary), None)
             return primary or self.images[0]
         return None
+
+    @property
+    def image_url_or_placeholder(self):
+        """Get the image URL with fallback to placeholder"""
+        if self.primary_image:
+            return self.primary_image.image_url
+        if self.image_url:  # Legacy support
+            return self.image_url
+        return 'images/placeholder.jpg'  # Default placeholder
     
     @hybrid_property
     def is_in_stock(self):
@@ -52,15 +62,20 @@ class Product(db.Model):
         self.stock = new_stock
         return True
     
+    @property
+    def price_display(self):
+        """Get formatted price"""
+        return "{:,.0f}".format(self.price)
+    
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'description': self.description,
-            'price': self.price,
+            'price': self.price,  # Price is already in VND
             'stock': self.stock,
             'image_url': self.primary_image.image_url if self.primary_image else self.image_url,
-            'images': [{'id': img.id, 'url': img.image_url, 'is_primary': img.is_primary} 
+            'images': [{'id': img.id, 'url': img.image_url, 'is_primary': img.is_primary}
                       for img in self.images] if self.images else [],
             'category_id': self.category_id,
             'category_name': self.category.name if self.category else None,

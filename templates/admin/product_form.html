@@ -61,7 +61,7 @@
                     <input type="number"
                            id="price"
                            name="price"
-                           value="{{ (product.price * 23000)|int if product else '' }}"
+                           value="{{ product.price if product else '' }}"
                            step="1000"
                            min="0"
                            required

@@ -53,21 +53,16 @@
                 {% for product in products.items %}
                 <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        {% if product.images %}
-                            {% set primary_image = product.primary_image %}
-                            {% if primary_image %}
-                            <img src="{{ url_for('static', filename='uploads/' + primary_image.image_url) }}"
-                                 alt="{{ product.name }}"
-                                 class="h-16 w-16 object-cover rounded">
-                            {% endif %}
-                        {% elif product.image_url %}
-                        <img src="{{ url_for('static', filename='uploads/' + product.image_url) }}"
-                             alt="{{ product.name }}"
-                             class="h-16 w-16 object-cover rounded">
+                        {% set image_url = product.image_url_or_placeholder %}
+                        {% if image_url == 'images/placeholder.jpg' %}
+                            <div class="h-16 w-16 bg-gray-100 flex items-center justify-center rounded">
+                                <i class="fas fa-image text-gray-400 text-xl"></i>
+                            </div>
                         {% else %}
-                        <div class="h-16 w-16 bg-gray-100 flex items-center justify-center rounded">
-                            <i class="fas fa-image text-gray-400 text-xl"></i>
-                        </div>
+                            <img src="{{ url_for('static', filename='uploads/' + image_url) }}"
+                                 alt="{{ product.name }}"
+                                 class="h-16 w-16 object-cover rounded"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'h-16 w-16 bg-gray-100 flex items-center justify-center rounded\'><i class=\'fas fa-image text-gray-400 text-xl\'></i></div>';">
                         {% endif %}
                     </td>
                     <td class="px-6 py-4">
@@ -79,7 +74,7 @@
                             {{ product.category.name }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ "{:,.0f}".format(product.price * 23000) }} VNĐ</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ "{:,.0f}".format(product.price) }}₫</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="{% if product.stock < 10 %}text-red-600{% else %}text-gray-900{% endif %}">
                             {{ product.stock }}

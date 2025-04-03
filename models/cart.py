@@ -2,6 +2,7 @@ from . import db
 from datetime import datetime
 from sqlalchemy import text
 from flask import current_app
+from models.product import Product  # Add explicit import
 
 class CartItem(db.Model):
     __tablename__ = 'cart_items'
@@ -14,7 +15,7 @@ class CartItem(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = db.Column(db.DateTime, nullable=True)
 
-    # Define relationship with Product (match the name in Product model)
+    # Define relationship with Product
     product = db.relationship('Product',
                           back_populates='cart_items',
                           lazy='joined',
@@ -27,13 +28,13 @@ class CartItem(db.Model):
     
     @property
     def subtotal(self):
-        """Calculate subtotal in base currency (USD)"""
-        return self.quantity * self.product.price
+        """Calculate subtotal in VND"""
+        return self.quantity * self.product.price if self.product else 0
     
     def to_dict(self):
         return {
             'id': self.id,
-            'product': self.product.to_dict(),
+            'product': self.product.to_dict() if self.product else None,
             'quantity': self.quantity,
             'subtotal': self.subtotal,
             'created_at': self.created_at.isoformat(),
@@ -41,94 +42,80 @@ class CartItem(db.Model):
         }
 
 class Cart:
-    """
-    Cart utility class for managing cart operations
-    This is not a database model, but a helper class to manage cart items
-    """
+    """Cart utility class for managing cart operations"""
     
     @staticmethod
     def get_user_cart(user_id):
-        """Get all cart items for a user"""
+        """Get all active cart items for a user"""
         try:
-            # Log cart retrieval attempt
             current_app.logger.info(f"=== Retrieving Cart for User {user_id} ===")
             
-            # Direct SQL query for cart validation
-            sql = text("""
-                SELECT
-                    COUNT(*) as count,
-                    COALESCE(SUM(ci.quantity * p.price), 0) as total
-                FROM cart_items ci
-                JOIN products p ON ci.product_id = p.id
-                WHERE ci.user_id = :user_id
-            """)
+            # Get basic cart items first (no joins)
+            cart_items = (CartItem.query
+                         .filter(
+                             CartItem.user_id == user_id,
+                             CartItem.deleted_at.is_(None)
+                         )
+                         .all())
             
-            # Execute query with error handling
+            current_app.logger.info(f"Found {len(cart_items)} items in cart")
+            
+            if not cart_items:
+                current_app.logger.info(f"No items in cart for user {user_id}")
+                return []
+            
+            # Start transaction for any updates needed
+            db.session.begin(nested=True)
             try:
-                result = db.session.execute(sql, {"user_id": user_id}).first()
-                current_app.logger.info(f"""
-                Cart SQL Query Result:
-                - Count: {result.count if result else 0}
-                - Total: {result.total if result else 0}
-                """)
-            except Exception as e:
-                current_app.logger.error(f"Cart SQL error: {str(e)}")
-                result = None
-            
-            current_app.logger.info(f"Direct SQL count: {result} items in cart_items table")
-            
-            # Get active cart items through SQLAlchemy
-            cart_items = CartItem.query.filter_by(
-                user_id=user_id,
-                deleted_at=None
-            ).all()
-            
-            # Detailed logging
-            current_app.logger.info("=== Cart Details ===")
-            current_app.logger.info(f"SQLAlchemy query found: {len(cart_items) if cart_items else 0} items")
-            
-            if cart_items:
-                for item in cart_items:
-                    # Check if product exists
-                    if item.product:
-                        current_app.logger.info(
-                            f"Item {item.id}: Product {item.product_id} "
-                            f"({item.product.name if item.product else 'Unknown'}), "
-                            f"Quantity: {item.quantity}, "
-                            f"Created: {item.created_at}"
-                        )
-                    else:
-                        current_app.logger.error(f"Product not found for cart item {item.id}")
-            else:
-                # Check session
-                from flask import session
-                current_app.logger.warning(f"No items found in cart. Session ID: {session.get('_id', 'No session')}")
+                valid_items = []
+                invalid_items = []
                 
-                # Verify database connection and cart state
-                try:
-                    # Test database connection
-                    check_sql = text("SELECT 1")
-                    db.session.execute(check_sql).scalar()
-                    current_app.logger.info("Database connection verified")
-
-                    # Double check cart state
-                    cart_check_sql = text("""
-                        SELECT COUNT(*) FROM cart_items
-                        WHERE user_id = :user_id AND deleted_at IS NULL
-                    """)
-                    cart_count = db.session.execute(
-                        cart_check_sql,
-                        {"user_id": user_id}
-                    ).scalar()
+                for item in cart_items:
+                    # Verify product exists and load it
+                    product = (Product.query
+                             .filter_by(id=item.product_id)
+                             .first())
                     
-                    current_app.logger.info(f"Direct cart check found {cart_count} items")
-                    
-                except Exception as e:
-                    current_app.logger.error(f"Database verification failed: {str(e)}")
-                    current_app.logger.error("Stack trace:", exc_info=True)
-            
-            return cart_items
-            
+                    if product:
+                        current_app.logger.info(
+                            f"Found cart item - Product: {product.name}, "
+                            f"Quantity: {item.quantity}, "
+                            f"Stock: {product.stock}"
+                        )
+                        # Keep item but log warning if out of stock
+                        if product.stock <= 0:
+                            current_app.logger.warning(
+                                f"Product {product.name} is out of stock"
+                            )
+                        elif item.quantity > product.stock:
+                            current_app.logger.warning(
+                                f"Quantity {item.quantity} exceeds stock {product.stock}"
+                            )
+                        valid_items.append(item)
+                    else:
+                        current_app.logger.warning(
+                            f"Cart item {item.id} references missing product {item.product_id}"
+                        )
+                        invalid_items.append(item)
+                
+                # Clean up invalid items
+                for item in invalid_items:
+                    item.deleted_at = datetime.utcnow()
+                    db.session.add(item)
+                
+                # Commit any changes
+                if invalid_items:
+                    db.session.commit()
+                    current_app.logger.info(f"Removed {len(invalid_items)} invalid items")
+                
+                current_app.logger.info(f"Returning {len(valid_items)} valid cart items")
+                return valid_items
+                
+            except Exception as e:
+                current_app.logger.error(f"Error processing cart items: {str(e)}")
+                db.session.rollback()
+                raise
+                
         except Exception as e:
             current_app.logger.error(f"Error retrieving cart: {str(e)}")
             current_app.logger.error("Stack trace:", exc_info=True)
@@ -136,209 +123,227 @@ class Cart:
     
     @staticmethod
     def get_cart_total(user_id):
-        """Calculate total price of all items in cart"""
-        from flask import current_app
-        
+        """Calculate total price and shipping cost of all items in cart"""
         try:
-            # Use direct SQL query for efficient calculation of active items
-            sql = text("""
-                SELECT
-                    COUNT(*) as count,
-                    COALESCE(ROUND(SUM(ci.quantity * p.price * 23000) + 30000, -3), 0) as total
-                FROM cart_items ci
-                JOIN products p ON ci.product_id = p.id
-                WHERE ci.user_id = :user_id
-                    AND ci.deleted_at IS NULL
-                    AND p.price > 0
+            cart_items = Cart.get_user_cart(user_id)
+            
+            if not cart_items:
+                return {
+                    'subtotal': 0.0,
+                    'shipping_cost': 0.0,
+                    'total': 0.0
+                }
+            
+            # Calculate subtotal
+            subtotal = sum(item.subtotal for item in cart_items if item.product)
+            
+            # Calculate shipping cost (free if subtotal >= 1M VND)
+            shipping_cost = 0 if subtotal >= 1000000 else 50000
+            
+            # Calculate total
+            total = subtotal + shipping_cost
+            
+            current_app.logger.info(f"""
+            Cart Total Calculation:
+            - Subtotal: {subtotal:,} VND
+            - Shipping: {shipping_cost:,} VND
+            - Total: {total:,} VND
             """)
             
-            result = db.session.execute(sql, {"user_id": user_id}).first()
-            if result:
-                current_app.logger.info(f"""
-                Cart Total Calculation Result:
-                - Active Items: {result.count}
-                - Subtotal Value: {result.total - 30000:,} VND
-                - Shipping Cost: 30,000 VND
-                - Total Value (with shipping): {result.total:,} VND
-                - User ID: {user_id}
-                """)
-                return float(result.total) if result.total is not None else 0.0
-            else:
-                current_app.logger.warning(f"No active cart items found for user {user_id}")
-                return 0.0
+            return {
+                'subtotal': float(subtotal),
+                'shipping_cost': float(shipping_cost),
+                'total': float(total)
+            }
             
         except Exception as e:
-            current_app.logger.error(f"""
-            === Cart Total Calculation Error ===
-            Error Type: {type(e).__name__}
-            Error Message: {str(e)}
-            User ID: {user_id}
-            """)
-            
-            # Log stack trace for debugging
+            current_app.logger.error(f"Error calculating cart total: {str(e)}")
             current_app.logger.error("Stack trace:", exc_info=True)
-            current_app.logger.info("Attempting ORM fallback method...")
-            
-            # Fallback to ORM method with explicit error handling
-            try:
-                cart_items = CartItem.query.filter_by(
-                    user_id=user_id,
-                    deleted_at=None
-                ).all()
-                
-                if not cart_items:
-                    current_app.logger.warning(f"No active cart items found for user {user_id} (ORM check)")
-                    return 0.0
-                
-                # Calculate total in USD
-                subtotal = sum(item.subtotal for item in cart_items if item.product)
-                current_app.logger.info(f"Cart subtotal (USD): ${subtotal:,.2f}")
-                
-                # Convert to VND and round to nearest 1000
-                # Add 30,000 VND shipping cost
-                total_vnd = round((subtotal * 23000) + 30000, -3)
-                current_app.logger.info(f"Cart total (VND): {total_vnd:,} VND")
-                
-                return float(total_vnd)
-                
-            except Exception as orm_error:
-                current_app.logger.error(f"""
-                === ORM Fallback Failed ===
-                Error: {str(orm_error)}
-                User ID: {user_id}
-                """)
-                current_app.logger.error("ORM fallback stack trace:", exc_info=True)
-                return 0.0
+            return {
+                'subtotal': 0.0,
+                'shipping_cost': 0.0,
+                'total': 0.0
+            }
     
     @staticmethod
     def add_to_cart(user_id, product_id, quantity=1):
         """Add a product to cart or update quantity if already exists"""
         try:
-            # First check for existing active item
-            cart_item = CartItem.query.filter_by(
-                user_id=user_id,
-                product_id=product_id,
-                deleted_at=None
-            ).first()
+            # Start transaction
+            db.session.begin(nested=True)
             
-            if cart_item:
-                current_app.logger.info(f"Updating quantity of existing cart item {cart_item.id}")
-                cart_item.quantity += quantity
-            else:
-                # Check for soft-deleted item
-                deleted_item = CartItem.query.filter_by(
-                    user_id=user_id,
-                    product_id=product_id
-                ).first()
+            try:
+                # Verify product exists
+                product = Product.query.get(product_id)
+                if not product:
+                    current_app.logger.error(f"Product {product_id} not found")
+                    db.session.rollback()
+                    return None
                 
-                if deleted_item:
-                    current_app.logger.info(f"Reactivating deleted cart item {deleted_item.id}")
-                    deleted_item.deleted_at = None
-                    deleted_item.quantity = quantity
-                    cart_item = deleted_item
+                # Get or create cart item
+                cart_item = (CartItem.query
+                           .filter_by(
+                               user_id=user_id,
+                               product_id=product_id,
+                               deleted_at=None
+                           )
+                           .first())
+                
+                if cart_item:
+                    # Update existing item
+                    cart_item.quantity += quantity
+                    cart_item.updated_at = datetime.utcnow()
+                    current_app.logger.info(
+                        f"Updated quantity for item {cart_item.id} "
+                        f"to {cart_item.quantity}"
+                    )
                 else:
-                    current_app.logger.info(f"Creating new cart item for user {user_id}")
+                    # Create new item
                     cart_item = CartItem(
                         user_id=user_id,
                         product_id=product_id,
                         quantity=quantity
                     )
                     db.session.add(cart_item)
-            
-            db.session.commit()
-            return cart_item
-            
+                    current_app.logger.info(
+                        f"Created new cart item with quantity {quantity}"
+                    )
+                
+                # Commit changes
+                db.session.commit()
+                current_app.logger.info("Successfully saved cart changes")
+                return cart_item
+                
+            except Exception as e:
+                current_app.logger.error(f"Error processing cart changes: {str(e)}")
+                db.session.rollback()
+                raise
+                
         except Exception as e:
             current_app.logger.error(f"Error adding to cart: {str(e)}")
-            db.session.rollback()
+            current_app.logger.error("Stack trace:", exc_info=True)
             return None
     
     @staticmethod
     def update_quantity(user_id, product_id, quantity):
         """Update quantity of a cart item"""
         try:
-            # Look for active cart item
-            cart_item = CartItem.query.filter_by(
-                user_id=user_id,
-                product_id=product_id,
-                deleted_at=None
-            ).first()
+            # Start transaction
+            db.session.begin(nested=True)
             
-            if cart_item:
+            try:
+                # Find cart item
+                cart_item = (CartItem.query
+                           .filter_by(
+                               user_id=user_id,
+                               product_id=product_id,
+                               deleted_at=None
+                           )
+                           .first())
+                
+                if not cart_item:
+                    current_app.logger.warning(f"No active cart item found")
+                    db.session.rollback()
+                    return None
+                
                 if quantity > 0:
-                    current_app.logger.info(f"Updating cart item {cart_item.id} quantity from {cart_item.quantity} to {quantity}")
                     cart_item.quantity = quantity
                     cart_item.updated_at = datetime.utcnow()
+                    
+                    # Commit changes
                     db.session.commit()
+                    current_app.logger.info(f"Updated quantity to {quantity}")
                     return cart_item
                 else:
-                    current_app.logger.info(f"Quantity is 0, soft deleting cart item {cart_item.id}")
                     return Cart.remove_from_cart(user_id, product_id)
-            else:
-                # Check if item exists but is deleted
-                deleted_item = CartItem.query.filter_by(
-                    user_id=user_id,
-                    product_id=product_id
-                ).first()
                 
-                if deleted_item:
-                    current_app.logger.info(f"Reactivating deleted cart item {deleted_item.id}")
-                    deleted_item.deleted_at = None
-                    deleted_item.quantity = quantity
-                    deleted_item.updated_at = datetime.utcnow()
-                    db.session.commit()
-                    return deleted_item
-                    
-                current_app.logger.warning(f"No cart item found for user {user_id}, product {product_id}")
-                return None
+            except Exception as e:
+                current_app.logger.error(f"Error processing quantity update: {str(e)}")
+                db.session.rollback()
+                raise
                 
         except Exception as e:
             current_app.logger.error(f"Error updating cart quantity: {str(e)}")
             current_app.logger.error("Stack trace:", exc_info=True)
-            db.session.rollback()
             return None
     
     @staticmethod
     def remove_from_cart(user_id, product_id):
         """Soft delete a product from cart"""
         try:
-            cart_item = CartItem.query.filter_by(
-                user_id=user_id,
-                product_id=product_id,
-                deleted_at=None
-            ).first()
+            # Start transaction
+            db.session.begin(nested=True)
             
-            if cart_item:
-                current_app.logger.info(f"Soft deleting cart item {cart_item.id}")
+            try:
+                # Find cart item
+                cart_item = (CartItem.query
+                           .filter_by(
+                               user_id=user_id,
+                               product_id=product_id,
+                               deleted_at=None
+                           )
+                           .first())
+                
+                if not cart_item:
+                    current_app.logger.warning(f"No active cart item found")
+                    db.session.rollback()
+                    return False
+                
+                # Soft delete
                 cart_item.deleted_at = datetime.utcnow()
+                
+                # Commit changes
                 db.session.commit()
+                current_app.logger.info(f"Removed cart item {cart_item.id}")
                 return True
-            else:
-                current_app.logger.warning(f"No active cart item found for user {user_id}, product {product_id}")
-                return False
+                
+            except Exception as e:
+                current_app.logger.error(f"Error processing cart item removal: {str(e)}")
+                db.session.rollback()
+                raise
+                
         except Exception as e:
-            current_app.logger.error(f"Error removing item from cart: {str(e)}")
-            db.session.rollback()
+            current_app.logger.error(f"Error removing from cart: {str(e)}")
+            current_app.logger.error("Stack trace:", exc_info=True)
             return False
     
     @staticmethod
     def clear_cart(user_id):
         """Soft delete all items from cart"""
         try:
-            items = CartItem.query.filter_by(
-                user_id=user_id,
-                deleted_at=None
-            ).all()
+            # Start transaction
+            db.session.begin(nested=True)
             
-            if items:
-                current_app.logger.info(f"Soft deleting {len(items)} items from cart")
+            try:
+                # Get all active items
+                cart_items = (CartItem.query
+                           .filter_by(
+                               user_id=user_id,
+                               deleted_at=None
+                           )
+                           .all())
+                
+                if not cart_items:
+                    current_app.logger.info(f"No active items to clear")
+                    db.session.commit()
+                    return True
+                
+                # Soft delete all items
                 now = datetime.utcnow()
-                for item in items:
+                for item in cart_items:
                     item.deleted_at = now
+                
+                # Commit changes
                 db.session.commit()
+                current_app.logger.info(f"Cleared {len(cart_items)} items")
                 return True
-            return True
+                
+            except Exception as e:
+                current_app.logger.error(f"Error processing cart clear: {str(e)}")
+                db.session.rollback()
+                raise
+                
         except Exception as e:
             current_app.logger.error(f"Error clearing cart: {str(e)}")
-            db.session.rollback()
+            current_app.logger.error("Stack trace:", exc_info=True)
             return False

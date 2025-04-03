@@ -62,7 +62,7 @@
                     <td class="px-6 py-4 whitespace-nowrap">{{ order.id }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ order.user.username }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ order.created_at_local }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ "{:,.0f}".format(order.total_amount * 23000) }} VNĐ</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ "{:,.0f}".format(order.total_amount) }}₫</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
                             {% if order.status == 'pending' %}bg-yellow-100 text-yellow-800

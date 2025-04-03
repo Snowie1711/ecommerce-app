@@ -63,21 +63,21 @@
                 <label class="block text-gray-700 font-semibold mb-2">Price Range</label>
                 <div class="grid grid-cols-2 gap-2">
                     <input type="number" 
-                           id="min_price" 
-                           name="min_price" 
+                           id="min_price"
+                           name="min_price"
                            value="{{ min_price or '' }}"
-                           step="0.01"
+                           step="1000"
                            min="0"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                           placeholder="Min">
+                           placeholder="Giá tối thiểu (VNĐ)">
                     <input type="number" 
-                           id="max_price" 
-                           name="max_price" 
+                           id="max_price"
+                           name="max_price"
                            value="{{ max_price or '' }}"
-                           step="0.01"
+                           step="1000"
                            min="0"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                           placeholder="Max">
+                           placeholder="Giá tối đa (VNĐ)">
                 </div>
             </div>
 

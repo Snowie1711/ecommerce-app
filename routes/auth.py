@@ -21,12 +21,15 @@ def admin_required(f):
 def register():
     if request.method == 'POST':
         email = request.form.get('email')
+        username = request.form.get('username')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
         
         # Basic validation
-        if not email or not password:
-            flash('Email and password are required', 'error')
+        if not email or not password or not username:
+            flash('Email, username, and password are required', 'error')
             return redirect(url_for('auth.register'))
             
         if password != confirm_password:
@@ -45,10 +48,17 @@ def register():
         if User.query.filter_by(email=email).first():
             flash('Email already registered', 'error')
             return redirect(url_for('auth.register'))
+            
+        if User.query.filter_by(username=username).first():
+            flash('Username already taken', 'error')
+            return redirect(url_for('auth.register'))
         
         # Create new user
         user = User(
             email=email,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
             password=password  # Password will be hashed by User model
         )
         

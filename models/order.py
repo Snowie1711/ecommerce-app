@@ -129,7 +129,7 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
-    price = db.Column(db.Float, nullable=False)  # Price at time of purchase
+    price = db.Column(db.Integer, nullable=False)  # Price in VND at time of purchase
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -138,6 +138,7 @@ class OrderItem(db.Model):
     
     @property
     def subtotal(self):
+        """Calculate subtotal in VND"""
         return self.quantity * self.price
     
     def to_dict(self):

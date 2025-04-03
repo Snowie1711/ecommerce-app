@@ -33,7 +33,8 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     
     # Upload configuration
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static/uploads')
+    UPLOAD_FOLDER = os.path.join('static', 'uploads')  # Relative to app root
+    UPLOADS_DEFAULT_DEST = os.path.join('static', 'uploads')  # For Flask-Uploads
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     
     # Mail configuration (for password reset)

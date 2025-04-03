@@ -15,9 +15,13 @@ def create_app(config_name='default'):
     # Load configuration
     app.config.from_object(config[config_name])
     
-    # Ensure the upload folder exists
-    if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        os.makedirs(app.config['UPLOAD_FOLDER'])
+    # Ensure the upload folder exists and has correct permissions
+    upload_folder = os.path.join(app.root_path, app.config['UPLOAD_FOLDER'])
+    if not os.path.exists(upload_folder):
+        os.makedirs(upload_folder, mode=0o755, exist_ok=True)
+    
+    # Update config to use absolute path
+    app.config['UPLOAD_FOLDER'] = upload_folder
     
     # Initialize extensions
     db.init_app(app)

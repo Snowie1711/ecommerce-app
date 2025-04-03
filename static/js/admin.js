@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${product.category_name}
                     </span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">$${product.price.toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${product.price.toLocaleString('vi-VN')}₫</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="${product.stock < 10 ? 'text-red-600' : 'text-gray-900'}">
                         ${product.stock}

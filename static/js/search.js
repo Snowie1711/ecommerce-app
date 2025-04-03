@@ -162,11 +162,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchSearchResults(query) {
-        fetch(`/api/products?search=${encodeURIComponent(query)}`)
+        if (!query.trim()) {
+            searchResults.classList.add('hidden');
+            return;
+        }
+
+        fetch(`/api/products?search=${encodeURIComponent(query)}&per_page=5`)
             .then(response => response.json())
             .then(data => {
-                if (data.success && data.products.length > 0) {
-                    displaySearchResults(data.products);
+                if (data.success && data.products && data.products.length > 0) {
+                    // Filter out any products that might have been invalidated
+                    const validProducts = data.products.filter(product => product && product.id);
+                    if (validProducts.length > 0) {
+                        displaySearchResults(validProducts);
+                    } else {
+                        searchResults.innerHTML = '<div class="p-4 text-gray-500">No products found</div>';
+                    }
                 } else {
                     searchResults.innerHTML = '<div class="p-4 text-gray-500">No products found</div>';
                 }
@@ -206,20 +217,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function generateProductCard(product) {
+        // Validate product data before generating HTML
+        if (!product || !product.id || !product.name || typeof product.price !== 'number') {
+            console.error('Invalid product data:', product);
+            return '';
+        }
+        
         return `
             <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition duration-300">
                 <a href="/products/${product.id}" class="block">
                     ${product.image_url
                         ? `<img src="/static/uploads/${product.image_url}" alt="${product.name}" class="w-full h-48 object-cover">`
                         : `<div class="w-full h-48 bg-gray-200 flex items-center justify-center">
-                            <i class="fas fa-image text-gray-400 text-4xl"></i>
-                           </div>`
+                             <i class="fas fa-image text-gray-400 text-4xl"></i>
+                            </div>`
                     }
                     <div class="p-4">
                         <h3 class="text-lg font-semibold mb-2 line-clamp-1">${product.name}</h3>
                         <p class="text-gray-600 mb-2 text-sm line-clamp-2">${product.description}</p>
                         <div class="flex justify-between items-center">
-                            <span class="text-blue-600 font-bold">$${product.price.toFixed(2)}</span>
+                            <span class="text-blue-600 font-bold">${product.price.toLocaleString('vi-VN')}₫</span>
                             <span class="text-sm text-gray-500">
                                 ${product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
                             </span>
@@ -298,26 +315,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function displaySearchResults(products) {
-        const html = products.map(product => `
-            <a href="/products/${product.id}" class="block hover:bg-gray-50">
-                <div class="flex items-center p-4 border-b border-gray-100">
-                    ${product.image_url ? 
-                        `<img src="/static/uploads/${product.image_url}" alt="${product.name}" class="w-12 h-12 object-cover rounded mr-4">` :
-                        '<div class="w-12 h-12 bg-gray-200 rounded mr-4 flex items-center justify-center"><i class="fas fa-image text-gray-400"></i></div>'
-                    }
-                    <div class="flex-1">
-                        <h4 class="text-sm font-medium text-gray-900">${product.name}</h4>
-                        <p class="text-sm text-gray-500">$${product.price.toFixed(2)}</p>
-                    </div>
-                    ${product.is_in_stock ? 
-                        '<span class="text-xs text-green-600">In Stock</span>' :
-                        '<span class="text-xs text-red-600">Out of Stock</span>'
-                    }
-                </div>
-            </a>
-        `).join('');
+        const html = products.map(product => {
+            try {
+                if (!product || !product.id || !product.name) {
+                    console.error('Invalid product data:', product);
+                    return '';
+                }
 
-        searchResults.innerHTML = html;
+                return `
+                    <a href="/products/${product.id}" class="block hover:bg-gray-50">
+                        <div class="flex items-center p-4 border-b border-gray-100">
+                            ${product.image_url ?
+                                `<img src="/static/uploads/${product.image_url}" alt="${product.name}" class="w-12 h-12 object-cover rounded mr-4">` :
+                                '<div class="w-12 h-12 bg-gray-200 rounded mr-4 flex items-center justify-center"><i class="fas fa-image text-gray-400"></i></div>'
+                            }
+                            <div class="flex-1">
+                                <h4 class="text-sm font-medium text-gray-900">${product.name}</h4>
+                                <p class="text-sm text-gray-500">${product.price.toLocaleString('vi-VN')}₫</p>
+                            </div>
+                            ${product.is_in_stock ?
+                                '<span class="text-xs text-green-600">In Stock</span>' :
+                                '<span class="text-xs text-red-600">Out of Stock</span>'
+                            }
+                        </div>
+                    </a>
+                `;
+            } catch (e) {
+                console.error('Error processing product:', e);
+                return '';
+            }
+        }).filter(Boolean).join('');
+
+        searchResults.innerHTML = html || '<div class="p-4 text-gray-500">No products found</div>';
     }
 
     function showError(message) {

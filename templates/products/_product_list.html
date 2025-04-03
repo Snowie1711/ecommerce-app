@@ -3,21 +3,14 @@
     {% for product in products.items %}
     <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition duration-300">
         <a href="{{ url_for('products.detail', id=product.id) }}" class="block">
-            {% if product.images %}
-                {% set primary_image = product.primary_image %}
-                {% if primary_image %}
-                <img src="{{ url_for('static', filename='uploads/' + primary_image.image_url) }}"
+            {% if product.primary_image or product.image_url %}
+                <img src="{{ url_for('static', filename='uploads/' + (product.primary_image.image_url if product.primary_image else product.image_url)) }}"
                      alt="{{ product.name }}"
                      class="w-full h-48 object-cover">
-                {% endif %}
-            {% elif product.image_url %}
-            <img src="{{ url_for('static', filename='uploads/' + product.image_url) }}"
-                 alt="{{ product.name }}"
-                 class="w-full h-48 object-cover">
             {% else %}
-            <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
-                <i class="fas fa-image text-gray-400 text-4xl"></i>
-            </div>
+                <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
+                    <i class="fas fa-image text-gray-400 text-4xl"></i>
+                </div>
             {% endif %}
             
             <div class="p-4">
@@ -25,7 +18,7 @@
                 <p class="text-gray-600 mb-2 text-sm line-clamp-2">{{ product.description }}</p>
                 
                 <div class="flex justify-between items-center">
-                    <span class="text-blue-600 font-bold">{{ "{:,.0f}".format(product.price * 23000) }} VNĐ</span>
+                    <span class="text-blue-600 font-bold">{{ product.price_display }}₫</span>
                     <span class="text-sm text-gray-500">
                         {% if product.stock > 0 %}
                         {{ product.stock }} in stock

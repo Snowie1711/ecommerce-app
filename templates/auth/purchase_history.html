@@ -27,7 +27,7 @@
                     <div class="col-md-6">
                         <h6>Order Summary</h6>
                         <p class="mb-1">Total Items: {{ order['item_count'] }}</p>
-                        <p class="mb-1">Total Amount: {{ "{:,.0f}".format(order['total_amount'] * 23000) }} VNĐ</p>
+                        <p class="mb-1">Total Amount: {{ "{:,.0f}".format(order['total_amount']) }}₫</p>
                         <p class="mb-1">Payment Method: {{ order['payment_method']|title }}</p>
                         {% if order['tracking_number'] %}
                         <p class="mb-1">Tracking Number: {{ order['tracking_number'] }}</p>
@@ -58,9 +58,9 @@
                                         {{ item['product']['name'] }}
                                     </a>
                                 </td>
-                                <td>{{ "{:,.0f}".format(item['price'] * 23000) }} VNĐ</td>
+                                <td>{{ "{:,.0f}".format(item['price']) }}₫</td>
                                 <td>{{ item['quantity'] }}</td>
-                                <td>{{ "{:,.0f}".format(item['subtotal'] * 23000) }} VNĐ</td>
+                                <td>{{ "{:,.0f}".format(item['subtotal']) }}₫</td>
                             </tr>
                             {% endfor %}
                         </tbody>

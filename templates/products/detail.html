@@ -22,20 +22,17 @@
             <div class="space-y-4">
                 <!-- Main Image Display -->
                 <div class="relative main-image-container">
-                    {% if product.images %}
-                        {% set main_image = product.primary_image or product.images[0] %}
-                        <img src="{{ url_for('static', filename='uploads/' + main_image.image_url) }}"
-                             alt="{{ product.name }}"
-                             id="mainImage"
-                             class="w-full h-96 object-cover rounded-lg cursor-pointer">
-                    {% elif product.image_url %}
-                        <img src="{{ url_for('static', filename='uploads/' + product.image_url) }}"
-                             alt="{{ product.name }}"
-                             class="w-full h-96 object-cover rounded-lg">
-                    {% else %}
+                    {% set image_url = product.image_url_or_placeholder %}
+                    {% if image_url == 'images/placeholder.jpg' %}
                         <div class="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
                             <i class="fas fa-image text-gray-400 text-6xl"></i>
                         </div>
+                    {% else %}
+                        <img src="{{ url_for('static', filename='uploads/' + image_url) }}"
+                             alt="{{ product.name }}"
+                             id="mainImage"
+                             class="w-full h-96 object-cover rounded-lg cursor-pointer"
+                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center\'><i class=\'fas fa-image text-gray-400 text-6xl\'></i></div>';">
                     {% endif %}
                     
                     {% if not product.is_active %}
@@ -57,7 +54,8 @@
                          onclick="switchMainImage('{{ url_for('static', filename='uploads/' + image.image_url) }}', this)">
                         <img src="{{ url_for('static', filename='uploads/' + image.image_url) }}"
                              alt="{{ product.name }} - Image {{ loop.index }}"
-                             class="w-full aspect-square object-cover rounded-lg hover:opacity-75 transition-opacity">
+                             class="w-full aspect-square object-cover rounded-lg hover:opacity-75 transition-opacity"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder.jpg') }}'; this.parentElement.style.display='none';">
                     </div>
                     {% endfor %}
                 </div>
@@ -69,7 +67,7 @@
                 <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ product.name }}</h1>
                 
                 <div class="mb-6">
-                    <div class="text-2xl font-bold text-blue-600 mb-2">{{ "{:,.0f}".format(product.price * 23000) }} VNĐ</div>
+                    <div class="text-2xl font-bold text-blue-600 mb-2">{{ product.price_display }}₫</div>
                     <div class="flex items-center space-x-4">
                         <span class="text-gray-600">SKU: {{ product.sku }}</span>
                         <span class="text-gray-600">Category:
@@ -133,7 +131,7 @@
                             <ul class="space-y-2 text-gray-600">
                                 <li class="flex items-center">
                                     <i class="fas fa-truck mr-2"></i>
-                                    Miễn phí vận chuyển cho đơn hàng trên 1,150,000 VNĐ
+                                    Free shipping for orders from 1,000,000₫
                                 </li>
                                 <li class="flex items-center">
                                     <i class="fas fa-clock mr-2"></i>
@@ -178,6 +176,15 @@
 
 {% block extra_js %}
 <script>
+    // Handle cart form submission
+    document.querySelector('form[action*="add_to_cart"]').addEventListener('submit', function() {
+        // Let the form submit complete
+        setTimeout(() => {
+            // Dispatch cartUpdated event
+            document.dispatchEvent(new CustomEvent('cartUpdated'));
+        }, 100);
+    });
+
     // Handle quantity changes
     document.getElementById('quantity').addEventListener('change', function() {
         if (this.value > {{ product.stock }}) {

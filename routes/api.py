@@ -8,25 +8,62 @@ api_bp = Blueprint('api', __name__)
 
 @api_bp.route('/products')
 def get_products():
-    """Get all products"""
-    products = Product.query.all()
-    return jsonify([product.to_dict() for product in products])
+    """Get products with optional search filter"""
+    search = request.args.get('search', '')
+    min_price = request.args.get('min_price', type=float)
+    max_price = request.args.get('max_price', type=float)
+    in_stock = request.args.get('in_stock', type=bool)
+    category = request.args.get('category')
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 12, type=int)
+
+    # Base query filtering out inactive products for non-admin users
+    query = Product.query
+    if not (current_user.is_authenticated and current_user.is_admin):
+        query = query.filter_by(is_active=True)
+
+    # Apply filters
+    if search:
+        query = query.filter(Product.name.ilike(f'%{search}%'))
+    if min_price is not None:
+        query = query.filter(Product.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Product.price <= max_price)
+    if in_stock:
+        query = query.filter(Product.stock > 0)
+    if category:
+        query = query.filter(Product.category == category)
+
+    # Paginate results
+    paginated = query.paginate(page=page, per_page=per_page)
+
+    return jsonify({
+        'success': True,
+        'products': [product.to_dict() for product in paginated.items],
+        'total': paginated.total,
+        'pages': paginated.pages,
+        'current_page': paginated.page
+    })
 
 @api_bp.route('/products/<int:id>')
 def get_product(id):
     """Get a specific product"""
-    product = Product.query.get_or_404(id)
+    # Only allow viewing active products for non-admin users
+    query = Product.query
+    if not (current_user.is_authenticated and current_user.is_admin):
+        query = query.filter_by(is_active=True)
+        
+    product = query.get_or_404(id, description='Product not found or no longer available')
+    
+    # Check if product is active for non-admin users
+    if not product.is_active and (not current_user.is_authenticated or not current_user.is_admin):
+        return jsonify({
+            'error': 'Product is no longer available',
+            'status': 404
+        }), 404
+        
     return jsonify(product.to_dict())
 
-@api_bp.route('/products/search')
-def search_products():
-    """Search products by name"""
-    query = request.args.get('q', '')
-    if not query:
-        return jsonify([])
-    
-    products = Product.query.filter(Product.name.ilike(f'%{query}%')).all()
-    return jsonify([product.to_dict() for product in products])
 
 @api_bp.route('/cart')
 @login_required
