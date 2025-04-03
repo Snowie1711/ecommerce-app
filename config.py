@@ -1,5 +1,15 @@
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Debug environment variables
+print("\n🔍 Debugging Environment Variables:")
+print(f"PAYOS_CLIENT_ID: {os.environ.get('PAYOS_CLIENT_ID', 'Not set')}")
+print(f"PAYOS_API_KEY: {os.environ.get('PAYOS_API_KEY', 'Not set')}")
+print(f"PAYOS_SECRET_KEY: {os.environ.get('PAYOS_SECRET_KEY', 'Not set')}\n")
 
 class Config:
     # Secret key for session management and security
@@ -9,17 +19,9 @@ class Config:
     BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')
     
     # PayOS configuration
-    PAYOS_CLIENT_ID = os.environ.get('PAYOS_CLIENT_ID', 'test-client-id')
-    PAYOS_API_KEY = os.environ.get('PAYOS_API_KEY', 'test-api-key')
-    PAYOS_CHECKSUM_KEY = os.environ.get('PAYOS_CHECKSUM_KEY', 'test-checksum-key')
-    
-    # MoMo configuration
-    MOMO_PARTNER_CODE = os.environ.get('MOMO_PARTNER_CODE')
-    MOMO_ACCESS_KEY = os.environ.get('MOMO_ACCESS_KEY')
-    MOMO_SECRET_KEY = os.environ.get('MOMO_SECRET_KEY')
-    MOMO_PAYMENT_URL = os.environ.get('MOMO_PAYMENT_URL', 'https://test-payment.momo.vn/v2/gateway/api/create')
-    MOMO_IPN_URL = 'http://localhost:5000/payment/callback'
-    MOMO_REDIRECT_URL = 'http://localhost:5000/payment/payment-result'
+    PAYOS_CLIENT_ID = os.environ.get('PAYOS_CLIENT_ID')
+    PAYOS_API_KEY = os.environ.get('PAYOS_API_KEY')
+    PAYOS_SECRET_KEY = os.environ.get('PAYOS_SECRET_KEY')
     
     # Database configuration
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///ecommerce.db'

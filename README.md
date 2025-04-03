@@ -50,34 +50,7 @@ npm run build:css
 
 4. Configure environment variables:
 - Copy `.env.example` to `.env`
-- Update variables, especially MoMo credentials:
-  ```
-  MOMO_PARTNER_CODE=your_partner_code
-  MOMO_ACCESS_KEY=your_access_key
-  MOMO_SECRET_KEY=your_secret_key
-  MOMO_PAYMENT_URL=https://test-payment.momo.vn/v2/gateway/api/create
-  ```
-
-### MoMo Integration Notes
-
-1. Amount Handling:
-- Amounts are stored in USD
-- Automatically converted to VND for MoMo (1 USD = 23,000 VND)
-- Amount must be at least 1,000 VND
-
-2. Error Handling:
-- Check logs for detailed error messages
-- Common error codes:
-  - `0`: Success
-  - `7`: Transaction denied
-  - `9`: Partner not found
-  - `10`: Invalid signature
-  - `11`: Order not found
-
-3. Development Testing:
-- Use MoMo Sandbox environment
-- Test credentials available at https://developers.momo.vn
-- Sandbox supports test transactions with any valid amount
+- Update PayOS credentials in the .env file
 
 ### Development vs Production
 
@@ -94,19 +67,12 @@ npm run build:css
 
 ### Troubleshooting
 
-1. MoMo Payment Issues:
-- Verify amount conversion (must be in VND)
-- Check signature generation
-- Validate partner credentials
-- Review server logs for detailed errors
-- Monitor MoMo sandbox dashboard for transaction status
-
-2. CSS/Styling Issues:
+1. CSS/Styling Issues:
 - In development: Use CDN (warning suppressed)
 - In production: Build CSS with `npm run build:css`
 - If npm not installed: Follow Node.js setup instructions
 
-3. Debug Mode:
+2. Debug Mode:
 - Enable debug toggle in UI
 - Check browser console
 - Review Flask server logs
@@ -120,7 +86,7 @@ npm run build:css
 
 2. Testing:
 - Run Python tests: `python -m pytest`
-- Test ZaloPay integration with sandbox
+- Test PayOS integration with sandbox
 - Verify responsive design
 
 ### License

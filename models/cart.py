@@ -144,7 +144,7 @@ class Cart:
             sql = text("""
                 SELECT
                     COUNT(*) as count,
-                    COALESCE(ROUND(SUM(ci.quantity * p.price * 23000), -3), 0) as total
+                    COALESCE(ROUND(SUM(ci.quantity * p.price * 23000) + 30000, -3), 0) as total
                 FROM cart_items ci
                 JOIN products p ON ci.product_id = p.id
                 WHERE ci.user_id = :user_id
@@ -157,7 +157,9 @@ class Cart:
                 current_app.logger.info(f"""
                 Cart Total Calculation Result:
                 - Active Items: {result.count}
-                - Total Value: {result.total}
+                - Subtotal Value: {result.total - 30000:,} VND
+                - Shipping Cost: 30,000 VND
+                - Total Value (with shipping): {result.total:,} VND
                 - User ID: {user_id}
                 """)
                 return float(result.total) if result.total is not None else 0.0
@@ -193,7 +195,8 @@ class Cart:
                 current_app.logger.info(f"Cart subtotal (USD): ${subtotal:,.2f}")
                 
                 # Convert to VND and round to nearest 1000
-                total_vnd = round(subtotal * 23000, -3)
+                # Add 30,000 VND shipping cost
+                total_vnd = round((subtotal * 23000) + 30000, -3)
                 current_app.logger.info(f"Cart total (VND): {total_vnd:,} VND")
                 
                 return float(total_vnd)

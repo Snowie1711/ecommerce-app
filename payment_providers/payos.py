@@ -13,7 +13,7 @@ class PayOSAPI:
         required_configs = [
             'PAYOS_CLIENT_ID',
             'PAYOS_API_KEY',
-            'PAYOS_CHECKSUM_KEY'
+            'PAYOS_SECRET_KEY'  # Updated to use SECRET_KEY instead of CHECKSUM_KEY
         ]
         
         # Verify all required configs are present
@@ -27,8 +27,8 @@ class PayOSAPI:
             
         self.client_id = current_app.config['PAYOS_CLIENT_ID']
         self.api_key = current_app.config['PAYOS_API_KEY']
-        self.checksum_key = current_app.config['PAYOS_CHECKSUM_KEY']
-        self.base_url = "https://api-merchant.payos.vn/v2"
+        self.secret_key = current_app.config['PAYOS_SECRET_KEY']
+        self.base_url = "https://api-merchant.payos.vn/v2"  # Changed back to correct endpoint
         self.api_endpoint = f"{self.base_url}/payment-requests"
 
     def create_payment(self, order_id: str, amount: int, description: str) -> dict:
@@ -44,97 +44,170 @@ class PayOSAPI:
             Dict containing payment URL and order data
         """
         try:
+            # Validate order_id format
+            try:
+                order_id_int = int(order_id)
+                if order_id_int <= 0:
+                    return {
+                        "success": False,
+                        "error": "Order ID must be a positive number"
+                    }
+                if order_id_int > 9007199254740991:  # PayOS max value
+                    return {
+                        "success": False,
+                        "error": "Order ID exceeds maximum allowed value"
+                    }
+            except ValueError:
+                return {
+                    "success": False,
+                    "error": "Order ID must be a valid number"
+                }
+                
             request_id = f"REQ_{datetime.now().strftime('%Y%m%d%H%M%S')}_{order_id}"
             
             # Prepare consistent description
             description = f"Payment for order {order_id}"
             cancel_url = f"{current_app.config['BASE_URL']}/payment/payment-result"
             return_url = f"{current_app.config['BASE_URL']}/payment/payment-result"
-
-            # Prepare payment data with fields in alphabetical order
+            
+            # Prepare payment data with required fields
             payment_data = {
                 "amount": amount,
                 "cancelUrl": cancel_url,
                 "description": description,
-                "orderCode": str(order_id),
+                "orderCode": int(order_id),  # PayOS requires this to be a number
                 "returnUrl": return_url
             }
 
-            # Generate signature and log details for debugging
-            signature = self._generate_signature(order_id, amount)
+            # Create string for signature in specific order
+            # Create dictionary of fields to ensure consistent sorting
+            fields = {
+                'amount': str(amount),
+                'cancelUrl': cancel_url,
+                'description': description,
+                'orderCode': int(order_id),  # Convert to number for signature generation
+                'returnUrl': return_url
+            }
+            # Sort by keys and concatenate values
+            # Build signature string with key=value pairs in alphabetical order, separated by &
+            signature_string = '&'.join(f"{key}={str(fields[key])}" for key in sorted(fields))
             
-            # Log full request details
-            current_app.logger.info(f"""
-            PayOS Payment Request Details:
-            ============================
-            Order ID: {order_id}
-            Amount: {amount} (type: {type(amount)})
-            Description: {description}
-            Cancel URL: {current_app.config['BASE_URL']}/payment/payment-result
-            Return URL: {current_app.config['BASE_URL']}/payment/payment-result
-            Generated Signature: {signature}
+            print("\n🔍 Chi tiết tạo chữ ký:")
+            print("1. Các trường theo thứ tự:")
+            print(f"   - amount: {amount}")
+            print(f"   - cancelUrl: {cancel_url}")
+            print(f"   - description: {description}")
+            print(f"   - orderCode: {order_id}")
+            print(f"   - returnUrl: {return_url}")
+            print("2. Chuỗi ký sau khi sắp xếp:", signature_string)
+            print("   Thứ tự trường:", ", ".join(sorted(fields.keys())))
+            print("3. Secret key:", self.secret_key)
             
-            Full Payment Data:
-            {json.dumps(payment_data, indent=2)}
-            ============================
-            """)
+            # Generate signature using concatenated string
+            signature = hmac.new(
+                self.secret_key.encode('utf-8'),
+                signature_string.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
             
+            print("4. Chữ ký tạo ra:", signature)
+            
+            # Add signature to payload
             payment_data["signature"] = signature
+            
+            print("\n🔍 Payload gửi lên PayOS:")
+            print(json.dumps(payment_data, indent=2, ensure_ascii=False))
 
-            # Make API request
-            response = requests.post(
-                self.api_endpoint,
-                json=payment_data,
-                headers={
+            try:
+                # Make API request with updated headers
+                # Print request details
+                print("\n🔍 Gửi request đến PayOS:")
+                print(f"URL: {self.api_endpoint}")
+                print("Headers:", {
                     'x-client-id': self.client_id,
                     'x-api-key': self.api_key,
-                    'Content-Type': 'application/json'
-                },
-                timeout=30
-            )
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                })
 
-            # Log raw response
-            current_app.logger.info(f"""
-            PayOS API Response:
-            ==================
-            Status Code: {response.status_code}
-            Response Headers: {dict(response.headers)}
-            Response Body: {response.text}
-            ==================
+                response = requests.post(
+                    self.api_endpoint,
+                    json=payment_data,
+                    headers={
+                        'x-client-id': self.client_id,
+                        'x-api-key': self.api_key,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    timeout=30
+                )
+            except requests.exceptions.RequestException as e:
+                print(f"\n❌ Lỗi kết nối đến PayOS: {str(e)}")
+                raise
+
+            # Log response from PayOS
+            print("\n🔍 Phản hồi từ PayOS:", response.json())
+
+            if not response.ok:
+                current_app.logger.error(f"""
+                PayOS API HTTP Error:
+                Status Code: {response.status_code}
+                Response: {response.text}
+                Request Payload: {json.dumps(payment_data, indent=2)}
+                """)
+                return {
+                    "success": False,
+                    "error": f"Payment system error (HTTP {response.status_code})"
+                }
+            
+            try:
+                result = response.json()
+            except json.JSONDecodeError as e:
+                current_app.logger.error(f"""
+                Failed to parse PayOS response:
+                Error: {str(e)}
+                Response Text: {response.text}
+                Request Payload: {json.dumps(payment_data, indent=2)}
+                """)
+                return {
+                    "success": False,
+                    "error": "Invalid response from payment server"
+                }
+
+            if not isinstance(result, dict):
+                current_app.logger.error(f"""
+                Invalid PayOS response format:
+                Response: {json.dumps(result, indent=2)}
+                Request Payload: {json.dumps(payment_data, indent=2)}
+                """)
+                return {
+                    "success": False,
+                    "error": "Invalid response format from payment server"
+                }
+            
+            if result.get('code') == '00' and result.get('data', {}).get('checkoutUrl'):
+                return {
+                    "success": True,
+                    "payment_url": result['data']['checkoutUrl'],
+                    "request_id": request_id
+                }
+
+            error_msg = result.get('desc', 'Unknown PayOS error')
+            error_code = result.get('code', 'UNKNOWN')
+            current_app.logger.error(f"""
+            PayOS API Error:
+            Error Message: {error_msg}
+            Response Code: {error_code}
+            Full Response: {json.dumps(result, indent=2)}
+            Request Payload: {json.dumps(payment_data, indent=2)}
+            Signature Details:
+            - Fields Order: {", ".join(sorted(fields.keys()))}
+            - Raw String: {signature_string}
+            - Generated Signature: {signature}
             """)
-
-            if response.status_code == 200:
-                try:
-                    result = response.json()
-                    if result.get('code') == '00':
-                        return {
-                            "success": True,
-                            "payment_url": result['data']['checkoutUrl'],
-                            "request_id": request_id
-                        }
-                    else:
-                        error_msg = result.get('desc', 'Unknown PayOS error')
-                        current_app.logger.error(f"""
-                        PayOS API Error:
-                        Error Message: {error_msg}
-                        Response Code: {result.get('code')}
-                        Full Response: {json.dumps(result, indent=2)}
-                        """)
-                        return {
-                            "success": False,
-                            "error": f"PayOS error: {error_msg}"
-                        }
-                except json.JSONDecodeError as e:
-                    current_app.logger.error(f"Failed to parse PayOS response: {str(e)}")
-                    return {
-                        "success": False,
-                        "error": "Invalid response from payment server"
-                    }
-
-            current_app.logger.error(f"PayOS API request failed: {response.status_code}")
             return {
                 "success": False,
-                "error": "Payment system error. Please try again."
+                "error": f"PayOS error ({error_code}): {error_msg}"
             }
 
         except Exception as e:
@@ -261,7 +334,7 @@ class PayOSAPI:
             
             # Calculate HMAC
             calculated_signature = hmac.new(
-                self.checksum_key.encode(),
+                self.secret_key.encode(),
                 data_to_sign.encode(),
                 hashlib.sha256
             ).hexdigest()
@@ -275,52 +348,45 @@ class PayOSAPI:
     def _generate_signature(self, order_id: str, amount: int) -> str:
         """
         Generate signature for payment request according to PayOS specification
-        Format: amount|cancelUrl|description|orderCode|returnUrl
+        using JSON-based signature generation
         """
         try:
-            # Prepare signature data with sorted field order
             cancel_url = f"{current_app.config['BASE_URL']}/payment/payment-result"
             return_url = f"{current_app.config['BASE_URL']}/payment/payment-result"
             description = f"Payment for order {order_id}"
-            order_code = str(order_id)
             
-            # Create signature string with fields in alphabetical order
-            signature_parts = [
-                str(amount),          # amount
-                cancel_url,           # cancelUrl
-                description,          # description
-                order_code,           # orderCode
-                return_url           # returnUrl
-            ]
+            # Create string for signature in specific order
+            # Create dictionary of fields to ensure consistent sorting
+            fields = {
+                'amount': str(amount),
+                'cancelUrl': cancel_url,
+                'description': description,
+                'orderCode': int(order_id),  # Convert to number for signature generation
+                'returnUrl': return_url
+            }
+            # Sort by keys and concatenate values
+            # Build signature string with key=value pairs in alphabetical order, separated by &
+            signature_string = '&'.join(f"{key}={str(fields[key])}" for key in sorted(fields))
             
-            # Join with | separator
-            data_string = "|".join(signature_parts)
+            print("\n🔍 Chi tiết tạo chữ ký:")
+            print("1. Các trường theo thứ tự:")
+            print(f"   - amount: {amount}")
+            print(f"   - cancelUrl: {cancel_url}")
+            print(f"   - description: {description}")
+            print(f"   - orderCode: {order_id}")
+            print(f"   - returnUrl: {return_url}")
+            print("2. Chuỗi ký sau khi sắp xếp:", signature_string)
+            print("   Thứ tự trường:", ", ".join(sorted(fields.keys())))
+            print("3. Secret key:", self.secret_key)
+            
             # Generate HMAC SHA256 signature
             signature = hmac.new(
-                self.checksum_key.encode('utf-8'),
-                data_string.encode('utf-8'),
+                self.secret_key.encode('utf-8'),
+                signature_string.encode('utf-8'),
                 hashlib.sha256
             ).hexdigest()
 
-            # Log signature data for debugging
-            current_app.logger.info(f"""
-            PayOS Signature Generation:
-            ========================
-            Input Values:
-            Amount: {amount} (type: {type(amount)})
-            Cancel URL: {cancel_url}
-            Description: {description}
-            Order Code: {order_code}
-            Return URL: {return_url}
-            
-            Signature String: {data_string}
-            Checksum Key (first 10): {self.checksum_key[:10]}...
-            
-            Generated HMAC-SHA256: {signature}
-            ========================
-            """)
-            
-            return signature
+            print("4. Chữ ký tạo ra:", signature)
             
             return signature
             
