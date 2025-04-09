@@ -70,16 +70,17 @@ class Order(db.Model):
     @property
     def item_count(self):
         return sum(item.quantity for item in self.items)
-    
-    def add_item(self, product_id, quantity, price):
+    def add_item(self, product_id, quantity, price, size=None):
         """Add an item to the order"""
         item = OrderItem(
             order_id=self.id,
             product_id=product_id,
             quantity=quantity,
-            price=price
+            price=price,
+            size=size
         )
         db.session.add(item)
+        return item
         return item
     
     def update_status(self, new_status):
@@ -128,13 +129,19 @@ class OrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    size = db.Column(db.String(10), nullable=True)  # For sized products
+    color_id = db.Column(db.Integer, db.ForeignKey('product_colors.id'), nullable=True)  # For colored products
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Integer, nullable=False)  # Price in VND at time of purchase
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
+    # Relationships
     order = db.relationship('Order', back_populates='items', lazy=True)
     product = db.relationship('Product', back_populates='order_items', lazy=True)
+    color = db.relationship('ProductColor', lazy=True)
+    color = db.relationship('ProductColor', lazy=True)
+    color = db.relationship('ProductColor', lazy=True)
     
     @property
     def subtotal(self):
@@ -146,6 +153,7 @@ class OrderItem(db.Model):
         return {
             'id': self.id,
             'product': self.product.to_dict(),
+            'size': self.size,
             'quantity': self.quantity,
             'price': self.price,
             'subtotal': self.subtotal,

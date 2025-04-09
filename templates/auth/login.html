@@ -64,15 +64,12 @@
             <div class="text-center mb-4">
                 <span class="px-3 bg-white text-gray-500">or login with</span>
             </div>
-            <div class="flex gap-4">
-                <button class="flex-1 flex items-center justify-center gap-2 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition duration-300">
-                    <i class="fab fa-google text-red-600"></i>
-                    <span class="text-gray-700">Google</span>
-                </button>
-                <button class="flex-1 flex items-center justify-center gap-2 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition duration-300">
-                    <i class="fab fa-facebook text-blue-600"></i>
-                    <span class="text-gray-700">Facebook</span>
-                </button>
+            <div class="flex justify-center">
+                <a href="{{ url_for('auth.google_login') }}"
+                   class="flex items-center justify-center gap-2 px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition duration-300">
+                    <img src="https://www.google.com/favicon.ico" alt="Google" class="w-5 h-5">
+                    <span class="text-gray-700">Sign in with Google</span>
+                </a>
             </div>
         </div>
     </div>

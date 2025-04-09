@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${product.category_name}
                     </span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">${product.price.toLocaleString('vi-VN')}₫</td>
+                <td class="px-6 py-4 whitespace-nowrap">${product.price_display}₫</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="${product.stock < 10 ? 'text-red-600' : 'text-gray-900'}">
                         ${product.stock}
@@ -161,23 +161,28 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
     }
 
-    // Event listeners
-    categoryFilter.addEventListener('change', () => fetchAdminProducts(1));
-    sortBy.addEventListener('change', () => fetchAdminProducts(1));
+    // Get the current search parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const isSearchMode = urlParams.get('search') !== null;
 
-    // Handle browser back/forward
-    window.addEventListener('popstate', () => {
-        const params = new URLSearchParams(window.location.search);
-        const page = parseInt(params.get('page')) || 1;
-        categoryFilter.value = params.get('category') || '';
-        sortBy.value = params.get('sort') || 'name';
-        fetchAdminProducts(page);
-    });
+    if (!isSearchMode) {
+        // Set up event listeners only if not in search mode
+        categoryFilter.addEventListener('change', () => fetchAdminProducts(1));
+        sortBy.addEventListener('change', () => fetchAdminProducts(1));
 
-    // Initial load
-    const params = new URLSearchParams(window.location.search);
-    const initialPage = parseInt(params.get('page')) || 1;
-    fetchAdminProducts(initialPage);
+        // Handle browser back/forward
+        window.addEventListener('popstate', () => {
+            const params = new URLSearchParams(window.location.search);
+            const page = parseInt(params.get('page')) || 1;
+            categoryFilter.value = params.get('category') || '';
+            sortBy.value = params.get('sort') || 'name';
+            fetchAdminProducts(page);
+        });
+
+        // Initial load of products
+        const initialPage = parseInt(urlParams.get('page')) || 1;
+        fetchAdminProducts(initialPage);
+    }
 });
 
 // Delete product function (global scope for onclick access)

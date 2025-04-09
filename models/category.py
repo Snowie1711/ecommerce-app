@@ -8,6 +8,7 @@ class Category(db.Model):
     name = db.Column(db.String(100), nullable=False, unique=True)
     slug = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.Text)
+    has_sizes = db.Column(db.Boolean, default=False)  # For categories like clothing/footwear
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -20,6 +21,7 @@ class Category(db.Model):
             'name': self.name,
             'slug': self.slug,
             'description': self.description,
+            'has_sizes': self.has_sizes,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }

@@ -7,9 +7,24 @@
     <div class="flex justify-between items-center mb-6">
         <div>
             <h1 class="text-3xl font-bold mb-4">Manage Products</h1>
-            <div class="flex gap-4">
+            <form method="GET" action="{{ url_for('admin.manage_products') }}" class="flex gap-4" id="productSearchForm">
+                <input type="hidden" name="page" value="{{ products.page }}" id="currentPage">
+                <div class="flex gap-4">
+                    <div>
+                        <input type="text"
+                               id="searchInput"
+                               name="search"
+                               value="{{ search or '' }}"
+                               placeholder="Search by name..."
+                               class="mt-1 block w-64 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <button type="submit"
+                            class="mt-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                        Search
+                    </button>
+                </div>
                 <div>
-                    <select id="categoryFilter"
+                    <select id="categoryFilter" name="category"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                         <option value="">All Categories</option>
                         {% for cat in categories %}
@@ -20,17 +35,17 @@
                     </select>
                 </div>
                 <div>
-                    <select id="sortBy"
+                    <select id="sortBy" name="sort"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                        <option value="name">Sort by Name</option>
-                        <option value="price">Sort by Price</option>
-                        <option value="stock">Sort by Stock</option>
-                        <option value="category">Sort by Category</option>
+                        <option value="name" {% if sort == 'name' %}selected{% endif %}>Sort by Name</option>
+                        <option value="price" {% if sort == 'price' %}selected{% endif %}>Sort by Price</option>
+                        <option value="stock" {% if sort == 'stock' %}selected{% endif %}>Sort by Stock</option>
+                        <option value="category" {% if sort == 'category' %}selected{% endif %}>Sort by Category</option>
                     </select>
                 </div>
-            </div>
+            </form>
         </div>
-        <a href="{{ url_for('products.create_product') }}"
+        <a href="{{ url_for('admin.create_product') }}"
            class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 h-fit">
             Add New Product
         </a>
@@ -87,7 +102,7 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <a href="{{ url_for('products.edit_product', id=product.id) }}"
+                        <a href="{{ url_for('admin.edit_product', id=product.id) }}"
                            class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
                         <button onclick="deleteProduct({{ product.id }})"
                                 class="text-red-600 hover:text-red-900">Delete</button>
@@ -103,7 +118,7 @@
     <div class="flex justify-center mt-6">
         <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
             {% if products.has_prev %}
-            <a href="{{ url_for('products.admin_products', page=products.prev_num, category=category, sort=sort) }}"
+            <a href="{{ url_for('admin.manage_products', page=products.prev_num, search=search, category=category, sort=sort) }}"
                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                 Previous
             </a>
@@ -111,7 +126,7 @@
             
             {% for page_num in products.iter_pages() %}
                 {% if page_num %}
-                    <a href="{{ url_for('products.admin_products', page=page_num, category=category, sort=sort) }}"
+                    <a href="{{ url_for('admin.manage_products', page=page_num, search=search, category=category, sort=sort) }}"
                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium {% if page_num == products.page %}text-indigo-600 bg-indigo-50{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
                         {{ page_num }}
                     </a>
@@ -123,7 +138,7 @@
             {% endfor %}
             
             {% if products.has_next %}
-            <a href="{{ url_for('products.admin_products', page=products.next_num, category=category, sort=sort) }}"
+            <a href="{{ url_for('admin.manage_products', page=products.next_num, search=search, category=category, sort=sort) }}"
                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                 Next
             </a>
@@ -138,6 +153,40 @@
 <script>
     // Make the CSRF token available to the admin.js script
     const csrfToken = "{{ csrf_token() }}";
+
+    // Form elements
+    const searchForm = document.getElementById('productSearchForm');
+    const searchInput = document.getElementById('searchInput');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const sortBy = document.getElementById('sortBy');
+    const currentPage = document.getElementById('currentPage');
+
+    // Helper function to submit form with specific page
+    function submitFormWithPage(pageNum) {
+        currentPage.value = pageNum;
+        searchForm.submit();
+    }
+
+    // Handle form submission
+    searchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitFormWithPage(1); // Reset to page 1 on new search
+    });
+
+    // Handle category change
+    categoryFilter.addEventListener('change', function() {
+        submitFormWithPage(1); // Reset to page 1 on category change
+    });
+
+    // Handle sort change
+    sortBy.addEventListener('change', function() {
+        submitFormWithPage(1); // Reset to page 1 on sort change
+    });
+
+    // Handle pagination
+    function changePage(pageNum) {
+        submitFormWithPage(pageNum);
+    }
 </script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 {% endblock %}

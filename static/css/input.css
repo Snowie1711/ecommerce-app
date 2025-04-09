@@ -26,6 +26,26 @@
     background: #555;
 }
 
+/* Cart badge styling - improved positioning */
+#cart-badge {
+    transition: all 0.3s ease;
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    transform-origin: center;
+}
+
+#cart-badge.hidden {
+    transform: scale(0);
+    opacity: 0;
+}
+
+/* Make sure cart icon container has correct positioning for the badge */
+.cart-icon-container {
+    position: relative;
+    display: inline-block;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
     width: 8px;

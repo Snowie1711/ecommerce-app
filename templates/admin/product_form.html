@@ -13,7 +13,7 @@
                class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
                 Dashboard
             </a>
-            <a href="{{ url_for('products.admin_products') }}"
+            <a href="{{ url_for('admin.manage_products') }}"
                class="px-6 py-3 text-blue-600 border-b-2 border-blue-600 font-semibold whitespace-nowrap">
                 Products
             </a>
@@ -26,7 +26,7 @@
         </h1>
 
         <form method="POST" 
-              action="{{ url_for('products.edit_product', id=product.id) if product else url_for('products.create_product') }}"
+              action="{{ url_for('admin.edit_product', id=product.id) if product else url_for('admin.create_product') }}"
               enctype="multipart/form-data"
               class="space-y-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -62,7 +62,6 @@
                            id="price"
                            name="price"
                            value="{{ product.price if product else '' }}"
-                           step="1000"
                            min="0"
                            required
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
@@ -80,6 +79,34 @@
                 </div>
             </div>
 
+            <!-- Color Management -->
+            <div id="color-management" class="space-y-4">
+                <h3 class="text-lg font-semibold mb-4">Color Management</h3>
+                <div class="space-y-4" id="colors-container">
+                    <!-- Color entries will be added here -->
+                </div>
+                <button type="button"
+                        onclick="addColorEntry()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    Add Color
+                </button>
+            </div>
+
+            <!-- Size Management (for clothing/footwear) -->
+            <div id="size-management" style="display: none;">
+                <h3 class="text-lg font-semibold mb-4">Size Management</h3>
+                <div class="space-y-4">
+                    <div id="sizes-container" class="space-y-4">
+                        <!-- Size entries will be added here -->
+                    </div>
+                    <button type="button"
+                            onclick="addSizeEntry()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        Add Size
+                    </button>
+                </div>
+            </div>
+
             <!-- Category -->
             <div>
                 <label for="category_id" class="block text-gray-700 font-semibold mb-2">Category</label>
@@ -89,7 +116,9 @@
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
                     <option value="">Select a category</option>
                     {% for category in categories %}
-                    <option value="{{ category.id }}" {% if product and product.category_id == category.id %}selected{% endif %}>
+                    <option value="{{ category.id }}"
+                            data-has-sizes="{{ category.has_sizes|tojson }}"
+                            {% if product and product.category_id == category.id %}selected{% endif %}>
                         {{ category.name }}
                     </option>
                     {% endfor %}
@@ -169,7 +198,7 @@
 
             <!-- Submit Buttons -->
             <div class="flex justify-end space-x-4">
-                <a href="{{ url_for('products.admin_products') }}"
+                <a href="{{ url_for('admin.manage_products') }}"
                    class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
                     Cancel
                 </a>
@@ -184,6 +213,207 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+    // Define common colors with their hex codes
+    const commonColors = [
+        { name: 'Black', code: '#000000' },
+        { name: 'White', code: '#FFFFFF' },
+        { name: 'Red', code: '#FF0000' },
+        { name: 'Blue', code: '#0000FF' },
+        { name: 'Green', code: '#008000' },
+        { name: 'Yellow', code: '#FFFF00' },
+        { name: 'Navy', code: '#000080' },
+        { name: 'Gray', code: '#808080' },
+        { name: 'Brown', code: '#8B4513' },
+        { name: 'Pink', code: '#FFC0CB' }
+    ];
+
+    // Function to add color entry
+    function addColorEntry(colorName = '', colorCode = '', stock = 0) {
+        // Check for duplicate color
+        const existingColors = Array.from(document.getElementsByName('color_names[]')).map(select => select.value);
+        if (colorName && existingColors.includes(colorName)) {
+            return false;
+        }
+
+        const entry = document.createElement('div');
+        entry.className = 'grid grid-cols-3 gap-4 items-center p-4 border border-gray-200 rounded-lg';
+        
+        // Create preview div for color display
+        const colorPreview = document.createElement('div');
+        colorPreview.className = 'w-6 h-6 rounded-full border border-gray-300 mb-2';
+        colorPreview.style.backgroundColor = colorCode || '#FFFFFF';
+        
+        entry.innerHTML = `
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                <div class="space-y-2">
+                    <div class="w-6 h-6 rounded-full border border-gray-300" style="background-color: ${colorCode || '#FFFFFF'}"></div>
+                    <select name="color_names[]" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" required>
+                        <option value="">Select Color</option>
+                        ${commonColors.map(color => `
+                            <option value="${color.name}" data-code="${color.code}" ${colorName === color.name ? 'selected' : ''}>
+                                ${color.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <input type="hidden" name="color_codes[]" value="${colorCode}" class="color-code-input">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                <input type="number"
+                       name="color_stocks[]"
+                       value="${stock}"
+                       min="0"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                       required>
+            </div>
+            <div class="flex items-end">
+                <button type="button"
+                        onclick="this.closest('.grid').remove()"
+                        class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Remove
+                </button>
+            </div>
+        `;
+
+        // Add event listener to update color code and preview when color is selected
+        const select = entry.querySelector('select[name="color_names[]"]');
+        const codeInput = entry.querySelector('.color-code-input');
+        const preview = entry.querySelector('.rounded-full');
+        
+        select.addEventListener('change', function() {
+            const option = this.options[this.selectedIndex];
+            const colorCode = option.dataset.code || '';
+            codeInput.value = colorCode;
+            preview.style.backgroundColor = colorCode;
+
+            // Check for duplicate colors
+            const otherColors = Array.from(document.getElementsByName('color_names[]'))
+                .filter(s => s !== this)
+                .map(s => s.value);
+
+            if (this.value && otherColors.includes(this.value)) {
+                alert('This color has already been added');
+                this.value = '';
+                codeInput.value = '';
+                preview.style.backgroundColor = '#FFFFFF';
+            }
+        });
+
+        document.getElementById('colors-container').appendChild(entry);
+        return true;
+    }
+
+    // Initialize existing colors if editing
+    {% if product and product.colors %}
+        {% for color in product.colors %}
+            addColorEntry('{{ color.color_name }}', '{{ color.color_code }}', {{ color.stock }});
+        {% endfor %}
+    {% endif %}
+</script>
+<script>
+    // Size management for clothing/footwear
+    const sizeOptions = {'clothing': ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                        'footwear': ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44']};
+    const sizesContainer = document.getElementById('sizes-container');
+    const categorySelect = document.getElementById('category_id');
+    const sizeManagement = document.getElementById('size-management');
+    
+    // Function to clear all size entries
+    function clearSizeEntries() {
+        sizesContainer.innerHTML = '';
+    }
+
+    // Show/hide size management based on category
+    function updateSizeManagement() {
+        const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+        const categoryHasSizes = selectedOption.getAttribute('data-has-sizes') === 'true';
+        sizeManagement.style.display = categoryHasSizes ? 'block' : 'none';
+        
+        if (categoryHasSizes) {
+            document.getElementById('stock').readOnly = true;
+            document.getElementById('stock').value = '0';
+            // Clear existing sizes when category changes
+            clearSizeEntries();
+        } else {
+            document.getElementById('stock').readOnly = false;
+        }
+    }
+
+    // Initialize on page load
+    if (categorySelect.value) {
+        updateSizeManagement();
+    }
+
+    // Update when category changes
+    categorySelect.addEventListener('change', updateSizeManagement);
+
+    function addSizeEntry(size = '', stock = 0) {
+        const selectedCategory = categorySelect.options[categorySelect.selectedIndex];
+        const categoryName = selectedCategory.textContent.trim().toLowerCase();
+        const sizeSet = categoryName.includes('shoe') || categoryName.includes('footwear') ? 'footwear' : 'clothing';
+        const availableSizes = sizeOptions[sizeSet];
+
+        // Check for duplicate size
+        const existingSizes = Array.from(document.getElementsByName('sizes[]')).map(select => select.value);
+        if (size && existingSizes.includes(size)) {
+            return false;
+        }
+
+        const entry = document.createElement('div');
+        entry.className = 'grid grid-cols-2 gap-4 items-center';
+        entry.innerHTML = `
+            <div>
+                <select name="sizes[]" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" required>
+                    <option value="">Select Size</option>
+                    ${availableSizes.map(opt => `
+                        <option value="${opt}" ${size === opt ? 'selected' : ''}>${opt}</option>
+                    `).join('')}
+                </select>
+            </div>
+            <div class="flex gap-4 items-center">
+                <input type="number"
+                       name="size_stocks[]"
+                       value="${stock}"
+                       min="0"
+                       placeholder="Stock"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                       required>
+                <button type="button"
+                        onclick="this.parentElement.parentElement.remove()"
+                        class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Remove
+                </button>
+            </div>
+        `;
+
+        // Prevent duplicate size selection
+        const sizeSelect = entry.querySelector('select[name="sizes[]"]');
+        sizeSelect.addEventListener('change', function() {
+            const selectedSize = this.value;
+            const otherSizes = Array.from(document.getElementsByName('sizes[]'))
+                .filter(select => select !== this)
+                .map(select => select.value);
+
+            if (selectedSize && otherSizes.includes(selectedSize)) {
+                alert('This size has already been added');
+                this.value = '';
+            }
+        });
+
+        sizesContainer.appendChild(entry);
+        return true;
+    }
+
+    // Initialize existing sizes if editing
+    {% if product and product.has_sizes %}
+        {% for size in product.sizes %}
+            addSizeEntry('{{ size.size }}', {{ size.stock }});
+        {% endfor %}
+    {% endif %}
+</script>
 <script>
     // Preview image before upload
     document.getElementById('images').addEventListener('change', function(e) {
@@ -267,20 +497,106 @@
         const price = document.getElementById('price').value;
         const stock = document.getElementById('stock').value;
         const categoryId = document.getElementById('category_id').value;
+        const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+        const categoryHasSizes = selectedOption?.getAttribute('data-has-sizes') === 'true';
         
+        // Basic validation
         if (price < 0) {
             e.preventDefault();
             alert('Price cannot be negative');
+            return;
         }
         
-        if (stock < 0) {
+        if (!categoryHasSizes && stock < 0) {
             e.preventDefault();
             alert('Stock cannot be negative');
+            return;
         }
 
         if (!categoryId) {
             e.preventDefault();
             alert('Please select a category');
+            return;
+        }
+
+        // Size validation for categories with sizes
+        if (categoryHasSizes) {
+            const sizes = document.getElementsByName('sizes[]');
+            const sizeStocks = document.getElementsByName('size_stocks[]');
+            
+            if (sizes.length === 0) {
+                e.preventDefault();
+                alert('Please add at least one size for this category');
+                return;
+            }
+
+            // Check for empty or duplicate sizes
+            const selectedSizes = new Set();
+            for (let i = 0; i < sizes.length; i++) {
+                const size = sizes[i].value;
+                const stock = parseInt(sizeStocks[i].value);
+
+                if (!size) {
+                    e.preventDefault();
+                    alert('Please select a size for all entries');
+                    return;
+                }
+
+                if (selectedSizes.has(size)) {
+                    e.preventDefault();
+                    alert('Duplicate sizes are not allowed');
+                    return;
+                }
+
+                if (isNaN(stock) || stock < 0) {
+                    e.preventDefault();
+                    alert('Please enter valid stock quantities for all sizes');
+                    return;
+                }
+
+                selectedSizes.add(size);
+            }
+        }
+
+        // Color validation
+        const colorNames = document.getElementsByName('color_names[]');
+        const colorCodes = document.getElementsByName('color_codes[]');
+        const colorStocks = document.getElementsByName('color_stocks[]');
+        
+        if (colorNames.length > 0) {
+            const selectedColors = new Set();
+            
+            for (let i = 0; i < colorNames.length; i++) {
+                const color = colorNames[i].value;
+                const code = colorCodes[i].value;
+                const stock = parseInt(colorStocks[i].value);
+
+                if (!color) {
+                    e.preventDefault();
+                    alert('Please select a color for all entries');
+                    return;
+                }
+
+                if (!code) {
+                    e.preventDefault();
+                    alert('Missing color code for ' + color);
+                    return;
+                }
+
+                if (selectedColors.has(color)) {
+                    e.preventDefault();
+                    alert('Duplicate colors are not allowed');
+                    return;
+                }
+
+                if (isNaN(stock) || stock < 0) {
+                    e.preventDefault();
+                    alert('Please enter valid stock quantities for all colors');
+                    return;
+                }
+
+                selectedColors.add(color);
+            }
         }
     });
 </script>

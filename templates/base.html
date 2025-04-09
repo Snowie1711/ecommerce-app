@@ -33,30 +33,6 @@
     
     <!-- Custom CSS -->
     <style>
-        /* Search Results Styles */
-        #search-results {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #e5e7eb;
-        }
-        
-        #search-results::-webkit-scrollbar {
-            width: 4px;
-        }
-        
-        #search-results::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        
-        #search-results::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 2px;
-        }
-        
-        #search-results::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
@@ -88,8 +64,24 @@
                         </a>
                     </div>
                     
+                    <!-- Search Form -->
+                    <div class="hidden md:flex md:ml-6 items-center flex-1 max-w-lg">
+                        <form action="{{ url_for('main.search') }}" method="get" class="w-full relative">
+                            <div class="flex gap-2">
+                                <input type="search" name="q" placeholder="Search products..."
+                                       data-search-input
+                                       class="w-full px-4 py-1 border rounded-lg focus:outline-none focus:border-blue-500"
+                                       value="{{ request.args.get('q', '') }}"
+                                       autocomplete="off">
+                                <button type="submit" class="px-4 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
                     <!-- Navigation Links -->
-                    <div class="hidden md:ml-6 md:flex md:space-x-8">
+                    <div class="hidden md:flex md:space-x-8">
                         <a href="{{ url_for('products.index') }}"
                            class="inline-flex items-center px-1 pt-1 text-gray-700 hover:text-blue-600">
                             Products
@@ -101,34 +93,16 @@
                             </a>
                         {% endif %}
                         {% if current_user.is_authenticated %}
-                            <a href="{{ url_for('cart.view_cart') }}"
-                               class="inline-flex items-center px-1 pt-1 text-gray-700 hover:text-blue-600 relative">
-                                <span class="text-xl relative inline-block">
-                                    🛒
-                                    <span id="cart-badge"
-                                          class="absolute -top-1 left-4 bg-red-500 text-white text-xs font-medium rounded-full w-4 h-4 flex items-center justify-center"
-                                          style="display: none;">0</span>
-                                </span>
+                        <div class="flex items-center">
+                            <a href="{{ url_for('cart.view_cart') }}" class="text-gray-700 hover:text-blue-600 relative">
+                                <i class="fas fa-shopping-cart text-xl"></i>
+                                <span id="cart-badge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">0</span>
                             </a>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
 
-                <!-- Search Bar -->
-                <div class="flex-1 flex items-center justify-center px-4">
-                    <div class="w-full max-w-lg">
-                        <div class="relative">
-                            <input type="text" id="search-input"
-                                class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500"
-                                placeholder="Search products...">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-search text-gray-500"></i>
-                            </div>
-                        </div>
-                        <div id="search-results" class="absolute z-50 w-full max-w-lg bg-white mt-1 rounded-lg shadow-lg hidden">
-                        </div>
-                    </div>
-                </div>
 
                 <!-- User Menu -->
                 <div class="flex items-center">
@@ -217,10 +191,44 @@
         }, 3000);
     </script>
     
-    <!-- Search functionality -->
-    <script src="{{ url_for('static', filename='js/search.js') }}"></script>
     <script src="{{ url_for('static', filename='js/cart.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/search.js') }}"></script>
+    
+    <!-- Additional Scripts -->
+    <script src="{{ url_for('static', filename='js/layout.js') }}"></script>
     
     {% block extra_js %}{% endblock %}
+    <script>
+        // Function to update cart badge
+        function updateCartBadge() {
+            fetch('/api/cart')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('cart-badge');
+                    if (badge) {
+                        const itemCount = data.items ? data.items.reduce((total, item) => total + item.quantity, 0) : 0;
+                        badge.textContent = itemCount;
+                        
+                        // Hide badge if cart is empty
+                        if (itemCount === 0) {
+                            badge.classList.add('hidden');
+                        } else {
+                            badge.classList.remove('hidden');
+                        }
+                    }
+                })
+                .catch(error => console.error('Error fetching cart data:', error));
+        }
+
+        // Update cart badge when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCartBadge();
+        });
+
+        // Listen for custom cart update events
+        document.addEventListener('cartUpdated', function() {
+            updateCartBadge();
+        });
+    </script>
 </body>
 </html>

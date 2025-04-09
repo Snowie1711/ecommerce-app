@@ -1,13 +1,13 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
-from models import db, Product, Category, ProductImage
+from models import db, Product, Category, ProductImage, ProductSize
 from routes.auth import admin_required
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 import os
 from datetime import datetime
 
-products_bp = Blueprint('products', __name__)
+products_bp = Blueprint('products', __name__, url_prefix='/products')
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -77,7 +77,6 @@ def delete_product_image(image):
 
 def get_filtered_query(
     categories=None,
-    search=None,
     min_price=None,
     max_price=None,
     in_stock=None
@@ -97,23 +96,16 @@ def get_filtered_query(
     else:
         query = query.options(db.joinedload(Product.category))
 
-    if search:
-        search_terms = search.split()
-        for term in search_terms:
-            search_term = f'%{term.lower()}%'
-            query = query.filter(
-                or_(
-                    Product.name.ilike(search_term),
-                    Product.description.ilike(search_term)
-                )
-            )
     
     if min_price is not None:
         query = query.filter(Product.price >= min_price)
     if max_price is not None:
         query = query.filter(Product.price <= max_price)
     if in_stock is not None:
-        query = query.filter(Product.stock > 0 if in_stock else Product.stock == 0)
+        if str(in_stock) == '1':
+            query = query.filter(Product.stock > 0)
+        elif str(in_stock) == '0':
+            query = query.filter(Product.stock == 0)
 
     return query.options(db.joinedload(Product.images))
 
@@ -121,14 +113,12 @@ def get_filtered_query(
 def index():
     page = request.args.get('page', 1, type=int)
     categories = request.args.getlist('categories')
-    search = request.args.get('search')
     min_price = request.args.get('min_price', type=float)
     max_price = request.args.get('max_price', type=float)
     in_stock = request.args.get('in_stock', type=int)
     
     query = get_filtered_query(
         categories=categories,
-        search=search,
         min_price=min_price,
         max_price=max_price,
         in_stock=in_stock
@@ -147,7 +137,6 @@ def index():
         products=products,
         categories=all_categories,
         selected_categories=categories,
-        search=search,
         min_price=min_price,
         max_price=max_price,
         in_stock=in_stock
@@ -160,14 +149,12 @@ def category_view(category_name):
     ).first_or_404()
     
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search')
     min_price = request.args.get('min_price', type=float)
     max_price = request.args.get('max_price', type=float)
     in_stock = request.args.get('in_stock', type=int)
     
     query = get_filtered_query(
         categories=category_name,
-        search=search,
         min_price=min_price,
         max_price=max_price,
         in_stock=in_stock
@@ -187,32 +174,28 @@ def category_view(category_name):
         categories=all_categories,
         selected_category=category.name,
         category=category,
-        search=search,
         min_price=min_price,
         max_price=max_price,
         in_stock=in_stock
     )
 
-@products_bp.route('/<int:id>')
+@products_bp.route('/<int:id>')  # Now maps to /products/<id>
 def detail(id):
     # Get product with category and images
     try:
-        # Only allow viewing active products for non-admin users
-        query = Product.query
-        if not (current_user.is_authenticated and current_user.is_admin):
-            query = query.filter_by(is_active=True)
-            
-        product = query.options(
+        # First get the product with all needed relationships
+        product = Product.query.options(
             db.joinedload(Product.category),
-            db.joinedload(Product.images)
+            db.joinedload(Product.images),
+            db.joinedload(Product.colors)
         ).get_or_404(id, description='The product you are looking for may have been removed or is no longer available. Please try searching for similar products.')
         
-        # Check if product is active or if user is admin
+        # Then check if it's active for non-admin users
         if not product.is_active and (not current_user.is_authenticated or not current_user.is_admin):
             flash('This product is no longer available. Please check our other products.', 'error')
             return redirect(url_for('products.index'))
             
-        return render_template('products/detail.html', product=product)
+        return render_template('products/detail.html', product=product, min=min)
     except Exception as e:
         current_app.logger.error(f"Error accessing product {id}: {str(e)}")
         raise
@@ -273,22 +256,68 @@ def admin_products():
 def create_product():
     if request.method == 'POST':
         data = request.form
+        category = Category.query.get(int(data['category_id']))
+        has_sizes = category.has_sizes if category else False
         
+        # Create product
         product = Product(
             name=data['name'],
             description=data['description'],
-            price=int(float(data['price'])),  # Convert to int for VND (no decimals)
-            stock=int(data['stock']),
+            price=int(float(data['price'])) if float(data['price']) >= 0 else 0,  # Ensure non-negative price for VND
+            stock=0 if has_sizes else int(data['stock']),
             category_id=int(data['category_id']),
             sku=data['sku'],
-            is_active=bool(int(data.get('is_active', 0)))
+            is_active=bool(int(data.get('is_active', 0))),
+            has_sizes=has_sizes
         )
         
         db.session.add(product)
         db.session.flush()  # Get product ID without committing
+
+        # Handle colors if present
+        color_names = request.form.getlist('color_names[]')
+        color_codes = request.form.getlist('color_codes[]')
+        color_stocks = request.form.getlist('color_stocks[]')
         
+        if color_names and color_codes and color_stocks:
+            total_color_stock = 0
+            for name, code, stock in zip(color_names, color_codes, color_stocks):
+                if name and code:
+                    stock_value = int(stock or 0)
+                    total_color_stock += stock_value
+                    color = ProductColor(
+                        product=product,
+                        color_name=name,
+                        color_code=code,
+                        stock=stock_value
+                    )
+                    db.session.add(color)
+            product.stock = total_color_stock
         try:
+            # Handle product images
             handle_product_images(product, request.files)
+            
+            # Handle sizes if applicable
+            # Handle sizes if applicable
+            if has_sizes:
+                sizes = request.form.getlist('sizes[]')
+                stocks = request.form.getlist('size_stocks[]')
+                total_stock = 0
+                
+                for size, stock in zip(sizes, stocks):
+                    if size and stock:
+                        stock_value = int(stock)
+                        total_stock += stock_value
+                        size_entry = ProductSize(
+                            product=product,
+                            size=size,
+                            stock=stock_value
+                        )
+                        db.session.add(size_entry)
+                
+                # Update total stock (override color stock if both present)
+                product.stock = total_stock
+            
             db.session.commit()
             flash('Product created successfully!', 'success')
             return redirect(url_for('products.admin_products'))
@@ -297,7 +326,10 @@ def create_product():
             flash('Error creating product', 'error')
     
     categories = Category.query.all()
-    return render_template('admin/product_form.html', categories=categories)
+    return render_template(
+        'admin/product_form.html',
+        categories=categories
+    )
 
 @products_bp.route('/admin/products/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -309,15 +341,48 @@ def edit_product(id):
     
     if request.method == 'POST':
         data = request.form
+        category = Category.query.get(int(data['category_id']))
+        has_sizes = category.has_sizes if category else False
+
+        # Validate price is not negative and preserve decimal places
+        try:
+            price_float = float(data['price'])
+            if price_float < 0:
+                flash('Price cannot be negative.', 'error')
+                categories = Category.query.all()
+                sizes = product.sizes if product and product.has_sizes else []
+                return render_template('admin/product_form.html',
+                    product=product,
+                    categories=categories,
+                    sizes=sizes
+                )
+            new_price = int(price_float)  # Convert to integer after validation
+        except ValueError:
+            flash('Invalid price format.', 'error')
+            categories = Category.query.all()
+            sizes = product.sizes if product and product.has_sizes else []
+            return render_template('admin/product_form.html',
+                product=product,
+                categories=categories,
+                sizes=sizes
+            )
         
         product.name = data['name']
         product.description = data['description']
-        product.price = int(float(data['price']))  # Convert to int for VND (no decimals)
-        product.stock = int(data['stock'])
+        product.price = new_price  # Convert to int for VND (no decimals)
+        
+        # Handle base stock for non-sized products without colors
+        if not has_sizes and not data.getlist('color_names[]'):
+            try:
+                product.stock = int(data.get('stock', 0))
+            except ValueError:
+                product.stock = 0
         product.category_id = int(data['category_id'])
         product.sku = data['sku']
         product.is_active = bool(int(data.get('is_active', 0)))
+        product.has_sizes = has_sizes
         
+        # Start a transaction for the update
         try:
             # Handle image deletions
             images_to_keep = request.form.getlist('existing_images')
@@ -326,20 +391,91 @@ def edit_product(id):
                     delete_product_image(image)
             
             # Handle new images
-            handle_product_images(product, request.files, 
-                               existing_primary=any(img.is_primary for img in product.images))
+            handle_product_images(product, request.files,
+                                existing_primary=any(img.is_primary for img in product.images))
             
+            # Remove existing colors
+            for color in product.colors[:]:
+                db.session.delete(color)
+                
+            # Add new colors
+            color_names = request.form.getlist('color_names[]')
+            color_codes = request.form.getlist('color_codes[]')
+            color_stocks = request.form.getlist('color_stocks[]')
+            
+            if color_names and color_codes and color_stocks:
+                total_color_stock = 0
+                for name, code, stock in zip(color_names, color_codes, color_stocks):
+                    if name and code:
+                        try:
+                            stock_value = int(stock or 0)
+                            if stock_value < 0:
+                                stock_value = 0
+                            total_color_stock += stock_value
+                            color = ProductColor(
+                                product=product,
+                                color_name=name,
+                                color_code=code,
+                                stock=stock_value
+                            )
+                            db.session.add(color)
+                        except ValueError:
+                            continue
+                if not has_sizes:  # Only update total stock if product doesn't have sizes
+                    product.stock = total_color_stock
+            
+            # Handle sizes if applicable
+            if has_sizes:
+                # Remove existing sizes
+                for size in product.sizes[:]:
+                    db.session.delete(size)
+                
+                # Add new sizes
+                sizes = request.form.getlist('sizes[]')
+                stocks = request.form.getlist('size_stocks[]')
+                total_stock = 0
+                
+                for size, stock in zip(sizes, stocks):
+                    if size and stock:
+                        try:
+                            stock_value = int(stock)
+                            if stock_value < 0:
+                                stock_value = 0
+                            total_stock += stock_value
+                            size_entry = ProductSize(
+                                product=product,
+                                size=size,
+                                stock=stock_value
+                            )
+                            db.session.add(size_entry)
+                        except ValueError:
+                            continue
+                
+                # Always update total stock for sized products
+                product.stock = total_stock
+            
+            # Commit all changes in one transaction
             db.session.commit()
             flash('Product updated successfully!', 'success')
             return redirect(url_for('products.admin_products'))
+            
         except Exception as e:
+            # Rollback transaction on error
             db.session.rollback()
-            flash('Error updating product', 'error')
-    
+            current_app.logger.error(f'Error updating product {id}: {str(e)}')
+            flash('Error updating product. Please try again.', 'error')
+            return render_template('admin/product_form.html',
+                product=product,
+                categories=Category.query.all(),
+                sizes=product.sizes if product.has_sizes else []
+            )
     categories = Category.query.all()
+    sizes = product.sizes if product and product.has_sizes else []
     return render_template('admin/product_form.html',
-                         product=product,
-                         categories=categories)
+        product=product,
+        categories=categories,
+        sizes=sizes
+    )
 
 @products_bp.route('/admin/products/<int:id>/delete', methods=['POST'])
 @login_required
@@ -362,6 +498,35 @@ def delete_product(id):
         flash('Error deleting product', 'error')
     
     return redirect(url_for('products.admin_products'))
+
+@products_bp.route('/api/products/<int:id>/stock')
+def get_product_stock(id):
+    """Get available stock for a product with specific size/color"""
+    try:
+        product = Product.query.get_or_404(id)
+        size = request.args.get('size')
+        color_id = request.args.get('color_id')
+        
+        stock = 0
+        if product.has_sizes and size:
+            size_obj = next((s for s in product.sizes if s.size == size), None)
+            if size_obj:
+                stock = size_obj.stock
+        elif product.colors and color_id:
+            try:
+                color_id = int(color_id)
+                color = next((c for c in product.colors if c.id == color_id), None)
+                if color:
+                    stock = color.stock
+            except (ValueError, TypeError):
+                pass
+        else:
+            stock = product.stock
+            
+        return jsonify({'stock': stock})
+    except Exception as e:
+        current_app.logger.error(f"Error getting product stock: {str(e)}")
+        return jsonify({'error': 'Error getting stock information'}), 500
 
 @products_bp.route('/admin/products/<int:id>/images/<int:image_id>/delete', methods=['POST'])
 @login_required

@@ -7,6 +7,13 @@ def init_error_handlers(app):
         return request.path.startswith('/api/')
 
     def handle_error(error, code, title, description):
+        # Log request details for debugging
+        if app.debug and code == 400:
+            app.logger.error('Bad Request Details:')
+            app.logger.error('Form Data: %s', dict(request.form))
+            app.logger.error('Request Args: %s', dict(request.args))
+            app.logger.error('Request Method: %s', request.method)
+
         if is_api_request():
             return jsonify({
                 'error': {
@@ -16,11 +23,11 @@ def init_error_handlers(app):
                 }
             }), code
         return render_template('errors/error.html',
-                             error_code=code,
-                             error_title=title,
-                             error_description=description,
-                             debug=app.debug,
-                             error_details=str(error) if app.debug else None), code
+                          error_code=code,
+                          error_title=title,
+                          error_description=description,
+                          debug=app.debug,
+                          error_details=str(error) if app.debug else None), code
 
     @app.errorhandler(400)
     def bad_request_error(error):
@@ -149,21 +156,3 @@ def handle_validation_error(error):
                          error_code=error.status_code,
                          error_title='Validation Error',
                          error_description=error.message), error.status_code
-
-# Usage in app.py:
-# from error_handlers import init_error_handlers, ValidationError, handle_validation_error
-#
-# def create_app():
-#     app = Flask(__name__)
-#     ...
-#     init_error_handlers(app)
-#     app.register_error_handler(ValidationError, handle_validation_error)
-#     ...
-#
-# Usage in routes:
-# @app.route('/some-route')
-# @handle_errors
-# def some_route():
-#     if invalid_condition:
-#         raise ValidationError('Invalid input provided')
-#     ...

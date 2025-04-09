@@ -22,6 +22,11 @@
             <div class="space-y-4">
                 <!-- Main Image Display -->
                 <div class="relative main-image-container">
+                    {% if product.has_discount %}
+                    <div class="absolute top-4 left-4 bg-red-500 text-white px-4 py-2 rounded-full z-10">
+                        -{{ product.discount_percentage }}% OFF
+                    </div>
+                    {% endif %}
                     {% set image_url = product.image_url_or_placeholder %}
                     {% if image_url == 'images/placeholder.jpg' %}
                         <div class="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -67,7 +72,12 @@
                 <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ product.name }}</h1>
                 
                 <div class="mb-6">
-                    <div class="text-2xl font-bold text-blue-600 mb-2">{{ product.price_display }}₫</div>
+                    <div class="flex items-baseline space-x-4 mb-2">
+                        <div class="text-2xl font-bold text-blue-600">{{ product.price_display }}₫</div>
+                        {% if product.has_discount %}
+                        <div class="text-xl text-gray-400 line-through">{{ product.original_price_display }}₫</div>
+                        {% endif %}
+                    </div>
                     <div class="flex items-center space-x-4">
                         <span class="text-gray-600">SKU: {{ product.sku }}</span>
                         <span class="text-gray-600">Category:
@@ -85,32 +95,88 @@
 
                 <!-- Stock Status -->
                 <div class="mb-8">
-                    {% if product.stock > 0 %}
-                    <div class="flex items-center text-green-600 mb-4">
-                        <i class="fas fa-check-circle mr-2"></i>
-                        <span>In Stock ({{ product.stock }} available)</span>
-                    </div>
-                    {% else %}
-                    <div class="flex items-center text-red-600 mb-4">
-                        <i class="fas fa-times-circle mr-2"></i>
-                        <span>Out of Stock</span>
-                    </div>
+                    {% if not product.has_sizes %}
+                        {% if product.stock > 0 %}
+                        <div class="flex items-center text-green-600 mb-4">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            <span>In Stock ({{ product.stock }} available)</span>
+                        </div>
+                        {% else %}
+                        <div class="flex items-center text-red-600 mb-4">
+                            <i class="fas fa-times-circle mr-2"></i>
+                            <span>Out of Stock</span>
+                        </div>
+                        {% endif %}
                     {% endif %}
                 </div>
 
-                {% if product.is_active and product.stock > 0 %}
+                {% if product.is_active and product.is_in_stock %}
                 <!-- Add to Cart Form -->
                 <form action="{{ url_for('cart.add_to_cart', product_id=product.id) }}" method="POST" class="mb-8">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     
+                    {% if product.has_sizes %}
+                    <!-- Size Selection -->
+                    <div class="mb-4">
+                        <label for="size" class="block text-gray-700 font-semibold mb-2">Select Size:</label>
+                        <select id="size"
+                                name="size"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                onchange="updateQuantityOptions()">
+                            <option value="">Choose a size</option>
+                            {% for size in product.sizes %}
+                                {% if size.stock > 0 %}
+                                <option value="{{ size.size }}" data-stock="{{ size.stock }}">
+                                    {{ size.size }} - {{ size.stock }} available
+                                </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <!-- Color Selection -->
+                    {% if product.colors %}
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-semibold mb-2">Select Color:</label>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {% for color in product.colors %}
+                                {% if color.stock > 0 %}
+                                <div class="flex items-center space-x-2">
+                                    <input type="radio"
+                                           id="color-{{ color.id }}"
+                                           name="color_id"
+                                           value="{{ color.id }}"
+                                           data-stock="{{ color.stock }}"
+                                           class="hidden peer"
+                                           onchange="updateQuantityOptions()">
+                                    <label for="color-{{ color.id }}"
+                                           class="flex items-center space-x-2 px-4 py-2 border-2 border-gray-200 rounded-lg cursor-pointer peer-checked:border-blue-500 hover:bg-gray-50">
+                                        <div class="w-6 h-6 rounded-full border border-gray-300"
+                                             style="background-color: {{ color.color_code }}"></div>
+                                        <span>{{ color.color_name }} ({{ color.stock }})</span>
+                                    </label>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Quantity Selection -->
                     <div class="flex items-center space-x-4 mb-4">
                         <label for="quantity" class="text-gray-700 font-semibold">Quantity:</label>
-                        <select id="quantity" 
-                                name="quantity" 
-                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-                            {% for i in range(1, min(product.stock + 1, 11)) %}
-                            <option value="{{ i }}">{{ i }}</option>
-                            {% endfor %}
+                        <select id="quantity"
+                                name="quantity"
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                {% if product.has_sizes or product.colors %}disabled{% endif %}>
+                            {% if product.has_sizes or product.colors %}
+                                <option value="">Select options first</option>
+                            {% else %}
+                                {% for i in range(1, min(product.stock + 1, 11)) %}
+                                <option value="{{ i }}">{{ i }}</option>
+                                {% endfor %}
+                            {% endif %}
                         </select>
                     </div>
 
@@ -176,22 +242,108 @@
 
 {% block extra_js %}
 <script>
-    // Handle cart form submission
-    document.querySelector('form[action*="add_to_cart"]').addEventListener('submit', function() {
-        // Let the form submit complete
-        setTimeout(() => {
-            // Dispatch cartUpdated event
-            document.dispatchEvent(new CustomEvent('cartUpdated'));
-        }, 100);
-    });
+    // Common function to update quantity options based on available stock
+    function updateQuantityOptions() {
+        const quantitySelect = document.getElementById('quantity');
+        let maxStock = {{ product.stock }};
+        let currentQuantity = quantitySelect.value ? parseInt(quantitySelect.value) : 1;
 
-    // Handle quantity changes
+        {% if product.has_sizes %}
+        const sizeSelect = document.getElementById('size');
+        const selectedOption = sizeSelect.options[sizeSelect.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            maxStock = parseInt(selectedOption.getAttribute('data-stock'));
+        }
+        {% endif %}
+
+        {% if product.colors %}
+        const selectedColor = document.querySelector('input[name="color_id"]:checked');
+        if (selectedColor) {
+            const colorStock = parseInt(selectedColor.getAttribute('data-stock'));
+            if (!isNaN(colorStock)) {
+                maxStock = maxStock === {{ product.stock }} ? colorStock : Math.min(maxStock, colorStock);
+            }
+        }
+        {% endif %}
+
+        // Enable quantity selection based on product type
+        let shouldEnableQuantity = true;
+        let message = '';
+
+        {% if product.has_sizes and product.colors %}
+        const sizeSelected = sizeSelect && sizeSelect.value;
+        const colorSelected = document.querySelector('input[name="color_id"]:checked');
+        shouldEnableQuantity = sizeSelected && colorSelected;
+        if (!shouldEnableQuantity) {
+            message = !sizeSelected && !colorSelected ? "Select size and color" :
+                     !sizeSelected ? "Select size" : "Select color";
+        }
+        {% elif product.has_sizes %}
+        const sizeSelected = sizeSelect && sizeSelect.value;
+        shouldEnableQuantity = sizeSelected;
+        if (!shouldEnableQuantity) {
+            message = "Select size";
+        }
+        {% elif product.colors %}
+        const colorSelected = document.querySelector('input[name="color_id"]:checked');
+        shouldEnableQuantity = colorSelected;
+        if (!shouldEnableQuantity) {
+            message = "Select color";
+        }
+        {% endif %}
+
+        // Update quantity options
+        quantitySelect.innerHTML = '';
+
+        if (shouldEnableQuantity) {
+            if (maxStock > 0) {
+                for (let i = 1; i <= Math.min(maxStock, 10); i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i;
+                    if (i === currentQuantity && currentQuantity <= maxStock) {
+                        option.selected = true;
+                    }
+                    quantitySelect.appendChild(option);
+                }
+                quantitySelect.disabled = false;
+            } else {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "Out of stock";
+                quantitySelect.appendChild(option);
+                quantitySelect.disabled = true;
+            }
+        } else {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = message || "Select options first";
+            quantitySelect.appendChild(option);
+            quantitySelect.disabled = true;
+        }
+    }
+
+    {% if product.has_sizes %}
+    // Initialize size-based quantity options
+    document.getElementById('size').addEventListener('change', updateQuantityOptions);
+    {% endif %}
+
+    {% if product.colors %}
+    // Initialize color-based quantity options
+    document.querySelectorAll('input[name="color_id"]').forEach(radio => {
+        radio.addEventListener('change', updateQuantityOptions);
+    });
+    {% endif %}
+
+    {% if not product.has_sizes and not product.colors %}
+    // Handle quantity changes for non-sized products
     document.getElementById('quantity').addEventListener('change', function() {
         if (this.value > {{ product.stock }}) {
             alert('Selected quantity exceeds available stock');
             this.value = {{ product.stock }};
         }
     });
+    {% endif %}
 
     // Image gallery functionality
     function switchMainImage(imageUrl, thumbnailElement) {

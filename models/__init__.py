@@ -1,23 +1,28 @@
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
-from datetime import datetime
+from extensions import db
 
-# Initialize SQLAlchemy instance
-db = SQLAlchemy()
-
-# Import models after db initialization to avoid circular imports
-# First import models with no dependencies
+# Import all models
+from .user import User
+from .product import Product
+from .order import Order, OrderItem, OrderStatus
 from .category import Category
 from .product_image import ProductImage
+from .cart import Cart, CartItem
+from .oauth import OAuth
+from .product_size import ProductSize
+from .product_color import ProductColor
 
-# Then import models that depend on the above
-from .product import Product
-
-# Then import models that depend on Product
-from .cart import CartItem, Cart
-from .order import Order, OrderItem, OrderStatus
-
-# Finally import User which depends on Cart and Order
-from .user import User
-
-__all__ = ['db', 'User', 'Product', 'Category', 'CartItem', 'Cart', 'Order', 'OrderItem', 'OrderStatus', 'ProductImage']
+__all__ = [
+    'db',
+    'User',
+    'Product',
+    'Order',
+    'OrderItem',
+    'OrderStatus',
+    'Category',
+    'ProductImage',
+    'Cart',
+    'CartItem',
+    'OAuth',
+    'ProductSize',
+    'ProductColor'
+]

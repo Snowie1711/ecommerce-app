@@ -51,6 +51,20 @@ class Config:
 class DevelopmentConfig(Config):
     DEBUG = True
     
+    # OAuth settings
+    OAUTHLIB_INSECURE_TRANSPORT = True
+    OAUTHLIB_RELAX_TOKEN_SCOPE = True
+    OAUTHLIB_DEBUG = True
+    
+    # Server settings
+    SERVER_NAME = "127.0.0.1:5000"
+    PREFERRED_URL_SCHEME = "http"
+    
+    # Debug settings
+    EXPLAIN_TEMPLATE_LOADING = True
+    TRAP_HTTP_EXCEPTIONS = True
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Enable OAuth on http
+    
 class ProductionConfig(Config):
     DEBUG = False
     # In production, ensure to set proper secret keys through environment variables

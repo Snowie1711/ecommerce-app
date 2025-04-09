@@ -3,9 +3,9 @@ from flask_login import login_required, current_user
 from models.order import Order, OrderStatus
 from models import db
 
-orders = Blueprint('orders', __name__)
+orders_bp = Blueprint('orders', __name__)
 
-@orders.route('/')
+@orders_bp.route('/')
 @login_required
 def list_orders():
     """Display a list of the user's orders."""
@@ -16,7 +16,7 @@ def list_orders():
     
     return render_template('orders/list.html', orders=user_orders)
 
-@orders.route('/<int:order_id>')
+@orders_bp.route('/<int:order_id>')
 @login_required
 def order_detail(order_id):
     """Display the details of a specific order."""

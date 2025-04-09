@@ -1,49 +1,129 @@
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, session
+import uuid
+import json
+from models import Product, ProductColor
 from flask_login import login_required, current_user
+from flask_wtf.csrf import validate_csrf
+from werkzeug.exceptions import BadRequest
 from models import db, Product, Cart, Order, OrderStatus
 from datetime import datetime
-import json
 
 api_bp = Blueprint('api', __name__)
+
+def validate_api_csrf():
+    try:
+        token = request.headers.get('X-CSRF-Token') or request.get_json().get('csrf_token')
+        if not token:
+            raise BadRequest('Missing CSRF token')
+        validate_csrf(token)
+    except Exception as e:
+        raise BadRequest('Invalid CSRF token')
+
+def get_anonymous_user_id():
+    """Get or create anonymous user identifier"""
+    if 'anonymous_user_id' not in session:
+        session['anonymous_user_id'] = str(uuid.uuid4())
+    return session['anonymous_user_id']
+
+@api_bp.route('/products/<int:product_id>/stock')
+def get_product_stock(product_id):
+    """Get available stock for a product variant"""
+    try:
+        product = Product.query.get_or_404(product_id)
+        
+        size = request.args.get('size')
+        
+        try:
+            color_id = request.args.get('color_id')
+            if color_id:
+                color_id = int(color_id)
+                color = next((c for c in product.colors if c.id == color_id), None)
+                if color:
+                    return jsonify({'stock': color.stock})
+                return jsonify({'error': 'Color not found'}), 404
+        except ValueError:
+            return jsonify({'error': 'Invalid color ID'}), 400
+            
+        if size and product.has_sizes:
+            size_obj = next((s for s in product.sizes if s.size == size), None)
+            if size_obj:
+                return jsonify({'stock': size_obj.stock})
+            return jsonify({'error': 'Size not found'}), 404
+                
+        return jsonify({'stock': product.stock})
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting product stock: {str(e)}")
+        return jsonify({'error': 'Error getting product stock'}), 500
 
 @api_bp.route('/products')
 def get_products():
     """Get products with optional search filter"""
-    search = request.args.get('search', '')
-    min_price = request.args.get('min_price', type=float)
-    max_price = request.args.get('max_price', type=float)
-    in_stock = request.args.get('in_stock', type=bool)
-    category = request.args.get('category')
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 12, type=int)
+    try:
+        search = request.args.get('search', '').strip()
+        min_price = request.args.get('min_price', type=float)
+        max_price = request.args.get('max_price', type=float)
+        in_stock = request.args.get('in_stock')
+        category = request.args.get('category')
+        page = max(1, request.args.get('page', 1, type=int))
+        per_page = min(50, max(1, request.args.get('per_page', 12, type=int)))
 
-    # Base query filtering out inactive products for non-admin users
-    query = Product.query
-    if not (current_user.is_authenticated and current_user.is_admin):
-        query = query.filter_by(is_active=True)
+        # Base query filtering out inactive products for non-admin users
+        query = Product.query
+        # Check admin status safely for both dict and object current_user
+        # Check authentication and admin status safely for both dict and object current_user
+        is_authenticated = getattr(current_user, 'is_authenticated', False) if not isinstance(current_user, dict) else current_user.get('is_authenticated', False)
+        is_admin = getattr(current_user, 'is_admin', False) if not isinstance(current_user, dict) else current_user.get('is_admin', False)
+        if not (is_authenticated and is_admin):
+            query = query.filter_by(is_active=True)
 
-    # Apply filters
-    if search:
-        query = query.filter(Product.name.ilike(f'%{search}%'))
-    if min_price is not None:
-        query = query.filter(Product.price >= min_price)
-    if max_price is not None:
-        query = query.filter(Product.price <= max_price)
-    if in_stock:
-        query = query.filter(Product.stock > 0)
-    if category:
-        query = query.filter(Product.category == category)
+        # Apply filters
+        if search:
+            # Split search into terms and search each term independently
+            search_terms = search.split()
+            for term in search_terms:
+                query = query.filter(Product.name.ilike(f'%{term}%'))
 
-    # Paginate results
-    paginated = query.paginate(page=page, per_page=per_page)
+        if min_price is not None:
+            query = query.filter(Product.price >= min_price)
+        if max_price is not None:
+            query = query.filter(Product.price <= max_price)
+        if in_stock is not None:
+            if in_stock == '1':
+                query = query.filter(Product.stock > 0)
+            elif in_stock == '0':
+                query = query.filter(Product.stock == 0)
+        if category:
+            query = query.filter(Product.category == category)
 
-    return jsonify({
-        'success': True,
-        'products': [product.to_dict() for product in paginated.items],
-        'total': paginated.total,
-        'pages': paginated.pages,
-        'current_page': paginated.page
-    })
+        try:
+            # Try pagination first
+            paginated = query.paginate(page=page, per_page=per_page)
+            return jsonify({
+                'success': True,
+                'products': [product.to_dict() for product in paginated.items],
+                'total': paginated.total,
+                'pages': paginated.pages,
+                'current_page': paginated.page
+            })
+        except Exception as e:
+            # If pagination fails, return first page of results
+            current_app.logger.warning(f'Pagination failed, falling back to limit: {str(e)}')
+            products = query.limit(per_page).all()
+            return jsonify({
+                'success': True,
+                'products': [product.to_dict() for product in products],
+                'total': len(products),
+                'pages': 1,
+                'current_page': 1
+            })
+
+    except Exception as e:
+        current_app.logger.error(f'Search error: {str(e)}')
+        return jsonify({
+            'success': False,
+            'error': 'An error occurred while searching products'
+        }), 500
 
 @api_bp.route('/products/<int:id>')
 def get_product(id):
@@ -56,7 +136,12 @@ def get_product(id):
     product = query.get_or_404(id, description='Product not found or no longer available')
     
     # Check if product is active for non-admin users
-    if not product.is_active and (not current_user.is_authenticated or not current_user.is_admin):
+    # Check admin status safely for both dict and object current_user
+    is_admin = getattr(current_user, 'is_admin', False) if not isinstance(current_user, dict) else current_user.get('is_admin', False)
+    # Check authentication and admin status safely
+    is_authenticated = getattr(current_user, 'is_authenticated', False) if not isinstance(current_user, dict) else current_user.get('is_authenticated', False)
+    is_admin = getattr(current_user, 'is_admin', False) if not isinstance(current_user, dict) else current_user.get('is_admin', False)
+    if not product.is_active and (not is_authenticated or not is_admin):
         return jsonify({
             'error': 'Product is no longer available',
             'status': 404
@@ -64,32 +149,76 @@ def get_product(id):
         
     return jsonify(product.to_dict())
 
-
-@api_bp.route('/cart')
-@login_required
+@api_bp.route('/cart', methods=['GET'])
 def get_cart():
-    """Get the current user's cart"""
-    cart_items = Cart.get_user_cart(current_user.id)
-    return jsonify({
-        'items': [item.to_dict() for item in cart_items],
-        'total': Cart.get_cart_total(current_user.id)
-    })
+    """Get current user's cart"""
+    try:
+        # Handle both authenticated and anonymous users
+        # Check authentication status safely and get appropriate user ID
+        is_authenticated = getattr(current_user, 'is_authenticated', False) if not isinstance(current_user, dict) else current_user.get('is_authenticated', False)
+        if is_authenticated:
+            user_id = current_user['id'] if isinstance(current_user, dict) else current_user.id
+        else:
+            user_id = get_anonymous_user_id()
+
+        cart = Cart.get_cart_for_user(user_id)
+        
+        # Handle cart items safely with nested product information
+        cart_data = {
+            'items': [
+                {
+                    'id': item.get('id'),
+                    'product_id': item.get('product_id'),
+                    'quantity': item.get('quantity', 0),
+                    'price': item.get('price', 0),
+                    'subtotal': item.get('subtotal', 0),
+                    'product': {
+                        'name': item.get('product', {}).get('name', ''),
+                        'image_url': item.get('product', {}).get('image_url', '')
+                    } if item.get('product') else {}
+                }
+                for item in cart.get('items', [])
+            ],
+            'total': cart.get('total', 0)
+        }
+        return jsonify(cart_data)
+    except Exception as e:
+        current_app.logger.error(f"Error getting cart: {str(e)}")
+        return jsonify({'error': str(e)}), 400
 
 @api_bp.route('/cart/add/<int:product_id>', methods=['POST'])
 @login_required
 def add_to_cart(product_id):
     """Add a product to cart"""
-    data = request.get_json()
-    quantity = int(data.get('quantity', 1))
-    
-    product = Product.query.get_or_404(product_id)
-    if quantity > product.stock:
-        return jsonify({'error': 'Not enough stock available'}), 400
-    
-    cart_item = Cart.add_to_cart(current_user.id, product_id, quantity)
-    if cart_item:
-        return jsonify(cart_item.to_dict())
-    return jsonify({'error': 'Failed to add item to cart'}), 500
+    try:
+        validate_api_csrf()  # Validate CSRF token
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        quantity = int(data.get('quantity', 1))
+        size = data.get('size')
+        color_id = data.get('color_id')
+        
+        product = Product.query.get_or_404(product_id)
+        if quantity > product.stock:
+            return jsonify({'error': 'Not enough stock available'}), 400
+        
+        # Handle both object and dict current_user
+        user_id = current_user['id'] if isinstance(current_user, dict) else current_user.id
+        result = Cart.add_to_cart(user_id, product_id, quantity, size, color_id)
+        
+        if result.get('success'):
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result.get('message', 'Failed to add item to cart')}), 400
+            
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"Error adding to cart: {str(e)}")
+        return jsonify({'error': 'An unexpected error occurred'}), 500
 
 @api_bp.route('/cart/update/<int:product_id>', methods=['PUT'])
 @login_required
@@ -105,7 +234,9 @@ def update_cart(product_id):
     if quantity > product.stock:
         return jsonify({'error': 'Not enough stock available'}), 400
     
-    result = Cart.update_quantity(current_user.id, product_id, quantity)
+    # Handle both object and dict current_user
+    user_id = current_user['id'] if isinstance(current_user, dict) else current_user.id
+    result = Cart.update_quantity(user_id, product_id, quantity)
     if result:
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update cart'}), 500
@@ -114,7 +245,9 @@ def update_cart(product_id):
 @login_required
 def remove_from_cart(product_id):
     """Remove item from cart"""
-    if Cart.remove_from_cart(current_user.id, product_id):
+    # Handle both object and dict current_user
+    user_id = current_user['id'] if isinstance(current_user, dict) else current_user.id
+    if Cart.remove_from_cart(user_id, product_id):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to remove item from cart'}), 500
 
@@ -163,15 +296,18 @@ def create_order():
                 }), 400
 
         # Create the order
-        cart_items = Cart.get_user_cart(current_user.id)
-        if not cart_items:
+        # Handle both object and dict current_user
+        user_id = current_user['id'] if isinstance(current_user, dict) else current_user.id
+        cart = Cart.get_cart_for_user(user_id)
+        if not cart or not cart.get('items'):
             return jsonify({'error': 'Cart is empty'}), 400
 
-        total_amount = sum(item.subtotal for item in cart_items)
+        cart_items = cart.get('items', [])
+        total_amount = cart.get('total', 0)
 
         # Create new order with shipping address
         order = Order(
-            user_id=current_user.id,
+            user_id=user_id,  # Using already extracted user_id
             status=OrderStatus.PENDING,
             total_amount=total_amount,
             shipping_address=json.dumps({
@@ -183,7 +319,6 @@ def create_order():
                 'zip': shipping_address['zip'],
                 'phone': shipping_address['phone']
             }),
-            # Use shipping address as billing if same_as_shipping is true
             billing_address=json.dumps({
                 'first_name': data.get('billing_first_name', shipping_address['first_name']),
                 'last_name': data.get('billing_last_name', shipping_address['last_name']),
@@ -202,16 +337,16 @@ def create_order():
         # Add order items
         for item in cart_items:
             order_item = order.add_item(
-                product_id=item.product_id,
-                quantity=item.quantity,
-                price=item.product.price
+                product_id=item.get('product_id'),
+                quantity=item.get('quantity', 0),
+                price=item.get('price', 0)
             )
             db.session.add(order_item)
 
         # Only clear the cart for COD payments initially
         payment_method = data.get('payment_method', 'payos')
         if payment_method == 'cod':
-            Cart.clear_cart(current_user.id)
+            Cart.clear_cart(user_id)  # Using already extracted user_id
 
         db.session.commit()
 
@@ -232,7 +367,9 @@ def create_order():
 def get_order(order_id):
     """Get order details"""
     order = Order.query.get_or_404(order_id)
-    if order.user_id != current_user.id and not current_user.is_admin:
+    # Handle both object and dict current_user
+    user_id = current_user['id'] if isinstance(current_user, dict) else current_user.id
+    if order.user_id != user_id and not getattr(current_user, 'is_admin', False):
         return jsonify({'error': 'Unauthorized'}), 403
     return jsonify(order.to_dict())
 
@@ -244,10 +381,14 @@ def get_orders():
     per_page = request.args.get('per_page', 10, type=int)
     
     # Admin can see all orders, users see only their own
-    if current_user.is_admin:
+    # Check admin status safely for both dict and object current_user
+    is_admin = getattr(current_user, 'is_admin', False) if not isinstance(current_user, dict) else current_user.get('is_admin', False)
+    if is_admin:
         orders = Order.query.paginate(page=page, per_page=per_page)
     else:
-        orders = Order.query.filter_by(user_id=current_user.id).paginate(
+        # Handle both object and dict current_user
+        user_id = current_user['id'] if isinstance(current_user, dict) else current_user.id
+        orders = Order.query.filter_by(user_id=user_id).paginate(
             page=page, per_page=per_page
         )
     

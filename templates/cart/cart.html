@@ -16,9 +16,9 @@
                     <div class="flex items-center space-x-4">
                         <!-- Product Image -->
                         <div class="flex-shrink-0 w-24 h-24">
-                            {% if item.product.image_url %}
-                            <img src="{{ url_for('static', filename='uploads/' + item.product.image_url) }}"
-                                 alt="{{ item.product.name }}"
+                            {% if item.image_url %}
+                            <img src="{{ url_for('static', filename='uploads/' + item.image_url) }}"
+                                 alt="{{ item.name }}"
                                  class="w-full h-full object-cover rounded">
                             {% else %}
                             <div class="w-full h-full bg-gray-200 rounded flex items-center justify-center">
@@ -30,25 +30,43 @@
                         <!-- Product Info -->
                         <div class="flex-grow">
                             <h3 class="text-lg font-semibold">
-                                <a href="{{ url_for('products.detail', id=item.product.id) }}"
+                                <a href="{{ url_for('products.detail', id=item.product_id) }}"
                                    class="text-gray-900 hover:text-blue-600">
-                                    {{ item.product.name }}
+                                    {{ item.name }}
                                 </a>
                             </h3>
-                            <p class="text-gray-600 text-sm mb-2">SKU: {{ item.product.sku }}</p>
-                            <p class="text-blue-600 font-bold">{{ item.product.price_display }}₫</p>
+                            <p class="text-gray-600 text-sm mb-2">
+                                SKU: {{ item.sku }}
+                                {% if item.size %}
+                                <span class="ml-2">Size: {{ item.size }}</span>
+                                {% endif %}
+                            </p>
+                            <p class="text-blue-600 font-bold">{{ "{:,.0f}".format(item.price) }}₫</p>
                         </div>
 
                         <!-- Quantity Controls -->
                         <div class="flex items-center space-x-4">
-                            <form action="{{ url_for('cart.update_cart', product_id=item.product.id) }}" 
+                            <form action="{{ url_for('cart.update_cart', product_id=item.product_id) }}"
                                   method="POST"
+                                  data-product-id="{{ item.product_id }}"
                                   class="flex items-center space-x-2">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <select name="quantity" 
+                                <input type="hidden" name="product_id" value="{{ item.product_id }}">
+                                {% if item.size %}
+                                    <input type="hidden" name="size" value="{{ item.size }}">
+                                {% endif %}
+                                {% if item.color %}
+                                    <input type="hidden" name="color_id" value="{{ item.color.id }}">
+                                {% endif %}
+                                
+                                {% set max_stock = item.color.stock if item.color else item.stock or 1 %}
+                                <select name="quantity"
                                         class="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                                        onchange="this.form.submit()">
-                                    {% for i in range(1, item.product.stock + 1) %}
+                                        data-product-id="{{ item.product_id }}"
+                                        data-size="{{ item.size if item.size else '' }}"
+                                        data-color-id="{{ item.color.id if item.color else '' }}"
+                                        data-previous-value="{{ item.quantity }}">
+                                    {% for i in range(1, max_stock + 1) %}
                                     <option value="{{ i }}" {% if i == item.quantity %}selected{% endif %}>
                                         {{ i }}
                                     </option>
@@ -62,10 +80,17 @@
                             </div>
 
                             <!-- Remove Button -->
-                            <form action="{{ url_for('cart.remove_from_cart', product_id=item.product.id) }}" 
+                            <form action="{{ url_for('cart.remove_from_cart', product_id=item.product_id) }}"
                                   method="POST"
+                                  data-product-id="{{ item.product_id }}"
                                   class="flex-shrink-0">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                {% if item.color %}
+                                    <input type="hidden" name="color_id" value="{{ item.color.id }}">
+                                {% endif %}
+                                {% if item.size %}
+                                    <input type="hidden" name="size" value="{{ item.size }}">
+                                {% endif %}
                                 <button type="submit" 
                                         class="text-red-600 hover:text-red-800"
                                         onclick="return confirm('Are you sure you want to remove this item?')">
@@ -145,29 +170,107 @@
 </div>
 {% block extra_js %}
 <script>
-// Update all cart forms to dispatch cartUpdated event
-document.querySelectorAll('form').forEach(form => {
-    form.addEventListener('submit', function(e) {
-        const formAction = this.getAttribute('action');
-        if (formAction && (formAction.includes('update_cart') || formAction.includes('remove_from_cart'))) {
-            // Let the form submit complete
-            setTimeout(() => {
-                // Dispatch cartUpdated event
-                document.dispatchEvent(new CustomEvent('cartUpdated'));
-            }, 100);
+document.addEventListener('DOMContentLoaded', function() {
+    const formatPrice = (number) => {
+        const value = parseFloat(number);
+        if (isNaN(value)) {
+            return '0₫';
         }
+        return new Intl.NumberFormat('vi-VN', {
+            maximumFractionDigits: 0
+        }).format(value) + '₫';
+    };
+
+    // Handle quantity select changes
+    document.querySelectorAll('select[name="quantity"]').forEach(select => {
+        // Add change event listener
+        select.addEventListener('change', async function(e) {
+            e.preventDefault();
+            
+            const form = this.closest('form');
+            if (!form) return;
+            
+            const currentValue = this.value;
+            const previousValue = this.dataset.previousValue;
+            const productId = form.dataset.productId;
+            
+            if (!productId) {
+                console.error('No product ID found in form');
+                return;
+            }
+            
+            try {
+                const formData = new FormData(form);
+                const response = await fetch(`/cart/update/${productId}`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Failed to update cart');
+                }
+
+                // Update the previous value after successful update
+                this.dataset.previousValue = currentValue;
+
+                // Find and update subtotal
+                const container = this.closest('.flex.items-center.space-x-4');
+                const subtotalElement = container?.querySelector('.text-gray-900.font-semibold.w-24');
+                if (subtotalElement && data.subtotal) {
+                    subtotalElement.textContent = formatPrice(data.subtotal);
+                }
+
+                // Update order summary
+                const summarySubtotal = document.querySelector('.space-y-4 .flex.justify-between:first-child .font-semibold');
+                const summaryTotal = document.querySelector('.border-t.border-gray-200 .text-lg.font-bold:last-child');
+                
+                if (summarySubtotal && data.subtotal) {
+                    summarySubtotal.textContent = formatPrice(data.subtotal);
+                }
+                if (summaryTotal && data.total) {
+                    summaryTotal.textContent = formatPrice(data.total);
+                }
+
+                // Update shipping message
+                const shippingMessage = document.querySelector('.text-sm.text-gray-500.mt-2');
+                if (shippingMessage && data.subtotal < 1000000) {
+                    const remaining = 1000000 - data.subtotal;
+                    shippingMessage.textContent = `Add ${formatPrice(remaining)} more to get free shipping!`;
+                } else if (shippingMessage) {
+                    shippingMessage.textContent = '';
+                }
+
+                // Notify other components
+                document.dispatchEvent(new CustomEvent('cartUpdated'));
+            } catch (error) {
+                console.error('Error:', error);
+                // Revert to previous value on error
+                this.value = previousValue;
+                alert(error.message || 'An error occurred while updating the cart');
+            }
+        });
     });
 });
 
-// Handle quantity select changes
+// Store initial values for all quantity selects
 document.querySelectorAll('select[name="quantity"]').forEach(select => {
-    select.addEventListener('change', function() {
-        // Let the form submit complete
-        setTimeout(() => {
-            // Dispatch cartUpdated event
-            document.dispatchEvent(new CustomEvent('cartUpdated'));
-        }, 100);
-    });
+    select.setAttribute('data-previous-value', select.value);
+});
+
+// Update cart forms to dispatch cartUpdated event for remove actions
+document.querySelectorAll('form').forEach(form => {
+    if (form.action.includes('remove_from_cart')) {
+        form.addEventListener('submit', function(e) {
+            setTimeout(() => {
+                document.dispatchEvent(new CustomEvent('cartUpdated'));
+            }, 100);
+        });
+    }
 });
 </script>
 {% endblock %}

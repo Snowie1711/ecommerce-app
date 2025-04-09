@@ -150,7 +150,12 @@
                         position: 'right',
                         title: {
                             display: true,
-                            text: 'Revenue (VNĐ)'
+                            text: 'Revenue (₫)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString('vi-VN') + '₫';
+                            }
                         }
                     }
                 }
@@ -250,12 +255,12 @@
 
     // Function to update metrics
     function updateMetrics(data) {
-        const totalRevenue = data.revenue.reduce((a, b) => a + b, 0) * 23000;
+        const totalRevenue = data.revenue.reduce((a, b) => a + b, 0);
         const totalOrders = data.orders.reduce((a, b) => a + b, 0);
         
-        document.getElementById('totalRevenue').textContent = `${totalRevenue.toLocaleString('vi-VN')} VNĐ`;
+        document.getElementById('totalRevenue').textContent = `${totalRevenue.toLocaleString('vi-VN')}₫`;
         document.getElementById('ordersCount').textContent = totalOrders;
-        document.getElementById('avgOrderValue').textContent = `${((totalRevenue) / totalOrders).toLocaleString('vi-VN')} VNĐ`;
+        document.getElementById('avgOrderValue').textContent = `${Math.round(totalRevenue / totalOrders).toLocaleString('vi-VN')}₫`;
         // You would need additional data for conversion rate
     }
 </script>

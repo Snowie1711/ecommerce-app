@@ -172,8 +172,23 @@
                     {% for item in cart_items %}
                     <div class="flex justify-between">
                         <div>
-                            <p class="font-semibold">{{ item.product.name }}</p>
-                            <p class="text-sm text-gray-600">Qty: {{ item.quantity }}</p>
+                            <p class="font-semibold">{{ item.name }}</p>
+                            <div class="text-sm text-gray-600">
+                                <p>Qty: {{ item.quantity }}</p>
+                                {% if item.size %}
+                                <p>Size: {{ item.size }}</p>
+                                {% endif %}
+                                {% if item.color %}
+                                <p class="flex items-center">
+                                    Color:
+                                    <span class="ml-1 flex items-center">
+                                        <span class="w-4 h-4 rounded-full border border-gray-300 mr-1"
+                                              style="background-color: {{ item.color.code }}"></span>
+                                        {{ item.color.name }}
+                                    </span>
+                                </p>
+                                {% endif %}
+                            </div>
                         </div>
                         <span class="font-semibold">{{ "{:,.0f}".format(item.subtotal) }}₫</span>
                     </div>
