@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <!-- Admin Navigation -->
+    <div class="bg-white shadow-md rounded-lg mb-8">
+        <div class="flex overflow-x-auto">
+            <a href="{{ url_for('admin.dashboard') }}"
+               class="px-6 py-3 text-blue-600 border-b-2 border-blue-600 font-semibold whitespace-nowrap">
+                Dashboard
+            </a>
+            <a href="{{ url_for('admin.manage_users') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Users
+            </a>
+            <a href="{{ url_for('admin.manage_orders') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Orders
+            </a>
+            <a href="{{ url_for('admin.manage_products') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Products
+            </a>
+            <a href="{{ url_for('admin.manage_discounts') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Discounts
+            </a>
+            <a href="{{ url_for('admin.cancellation_requests') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Cancellation Requests
+            </a>
+            <a href="{{ url_for('admin.analytics') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Analytics
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total Revenue -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-gray-500 text-sm font-medium">Total Revenue</h3>
+                <span class="text-green-500 bg-green-100 rounded-full p-2">
+                    <i class="fas fa-dollar-sign"></i>
+                </span>
+            </div>
+            <div class="flex items-baseline">
+                <span class="text-2xl font-bold text-gray-900">{{ "{:,.0f}".format(revenue) }}₫</span>
+                <span class="ml-2 text-sm text-green-600">+4.5%</span>
+            </div>
+        </div>
+
+        <!-- Total Orders -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-gray-500 text-sm font-medium">Total Orders</h3>
+                <span class="text-blue-500 bg-blue-100 rounded-full p-2">
+                    <i class="fas fa-shopping-cart"></i>
+                </span>
+            </div>
+            <div class="flex items-baseline">
+                <span class="text-2xl font-bold text-gray-900">{{ total_orders }}</span>
+                <span class="ml-2 text-sm text-blue-600">+2.1%</span>
+            </div>
+        </div>
+
+        <!-- Total Users -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-gray-500 text-sm font-medium">Total Users</h3>
+                <span class="text-purple-500 bg-purple-100 rounded-full p-2">
+                    <i class="fas fa-users"></i>
+                </span>
+            </div>
+            <div class="flex items-baseline">
+                <span class="text-2xl font-bold text-gray-900">{{ total_users }}</span>
+                <span class="ml-2 text-sm text-purple-600">+5.2%</span>
+            </div>
+        </div>
+
+        <!-- Total Products -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-gray-500 text-sm font-medium">Total Products</h3>
+                <span class="text-yellow-500 bg-yellow-100 rounded-full p-2">
+                    <i class="fas fa-box"></i>
+                </span>
+            </div>
+            <div class="flex items-baseline">
+                <span class="text-2xl font-bold text-gray-900">{{ total_products }}</span>
+                <span class="ml-2 text-sm text-yellow-600">+1.8%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Recent Orders -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-lg font-bold">Recent Orders</h2>
+            </div>
+            <div class="p-6">
+                {% if recent_orders %}
+                <div class="space-y-4">
+                    {% for order in recent_orders %}
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-semibold text-gray-900">Order #{{ order.id }}</p>
+                            <p class="text-sm text-gray-500">{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-semibold text-gray-900">{{ "{:,.0f}".format(order.total_amount) }}₫</p>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                       {% if order.status.value == 'paid' %}bg-green-100 text-green-800
+                                       {% elif order.status.value == 'pending' %}bg-yellow-100 text-yellow-800
+                                       {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ order.status.value|title }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-6 text-center">
+                    <a href="{{ url_for('admin.manage_orders') }}"
+                       class="text-blue-600 hover:text-blue-800">
+                        View All Orders
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-center">No recent orders</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Low Stock Products -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-lg font-bold">Low Stock Products</h2>
+            </div>
+            <div class="p-6">
+                {% if low_stock %}
+                <div class="space-y-4">
+                    {% for product in low_stock %}
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            {% if product.image_url %}
+                            <img src="{{ url_for('static', filename='uploads/' + product.image_url) }}"
+                                 alt="{{ product.name }}"
+                                 class="w-12 h-12 object-cover rounded">
+                            {% else %}
+                            <div class="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                                <i class="fas fa-image text-gray-400"></i>
+                            </div>
+                            {% endif %}
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ product.name }}</p>
+                                <p class="text-sm text-gray-500">SKU: {{ product.sku }}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-semibold text-red-600">{{ product.stock }} left</p>
+                            <a href="{{ url_for('admin.edit_product', id=product.id) }}"
+                               class="text-sm text-blue-600 hover:text-blue-800">
+                                Update Stock
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-6 text-center">
+                    <a href="{{ url_for('admin.manage_products') }}"
+                       class="text-blue-600 hover:text-blue-800">
+                        Manage Products
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-center">No low stock products</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Add any dashboard-specific JavaScript here
+    // For example, you could add real-time updates or charts
+</script>
+{% endblock %}

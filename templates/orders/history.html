@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Order History{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h2>Order History</h2>
+    
+    <div class="my-4">
+        {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Order #</th>
+                            <th>Date</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Cancellation</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>{{ order.id }}</td>
+                            <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ "{:,.0f}".format(order.total_amount) }} VNĐ</td>
+                            <td>
+                                {% if order.status.value == 'PENDING_PAYMENT' %}
+                                    <span class="badge text-bg-warning">Pending Payment</span>
+                                {% elif order.status.value == 'PAID' %}
+                                    <span class="badge text-bg-success">Paid</span>
+                                {% elif order.status.value == 'PROCESSING' %}
+                                    <span class="badge text-bg-info">Processing</span>
+                                {% elif order.status.value == 'SHIPPED' %}
+                                    <span class="badge text-bg-info">Shipped</span>
+                                {% elif order.status.value == 'DELIVERED' %}
+                                    <span class="badge text-bg-primary">Delivered</span>
+                                {% elif order.status.value == 'CANCELLED' %}
+                                    <span class="badge text-bg-danger">Cancelled</span>
+                                {% elif order.status.value == 'REFUNDED' %}
+                                    <span class="badge text-bg-secondary">Refunded</span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">{{ order.status.value }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if order.cancellation_requested %}
+                                    {% if order.cancellation_approved == None %}
+                                        <span class="badge text-bg-warning">Cancellation Pending</span>
+                                    {% elif order.cancellation_approved %}
+                                        <span class="badge text-bg-success">Cancellation Approved</span>
+                                    {% else %}
+                                        <span class="badge text-bg-danger">Cancellation Rejected</span>
+                                    {% endif %}
+                                {% elif order.status.value not in ['SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'] %}
+                                    <button type="button" class="btn btn-sm btn-danger" data-order-id="{{ order.id }}">
+                                        Request Cancel
+                                    </button>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('orders.order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <p>You don't have any orders yet.</p>
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-2">Continue Shopping</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Load order cancellation script before content -->
+<script src="{{ url_for('static', filename='js/order-cancel.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}{% endblock %}

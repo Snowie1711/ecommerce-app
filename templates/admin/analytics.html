@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <!-- Admin Navigation -->
+    <div class="bg-white shadow-md rounded-lg mb-8">
+        <div class="flex overflow-x-auto">
+            <a href="{{ url_for('admin.dashboard') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Dashboard
+            </a>
+            <a href="{{ url_for('admin.analytics') }}"
+               class="px-6 py-3 text-blue-600 border-b-2 border-blue-600 font-semibold whitespace-nowrap">
+                Analytics
+            </a>
+        </div>
+    </div>
+
+    <!-- Date Range Selector -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <form id="dateRangeForm" class="flex items-center space-x-4">
+            <div>
+                <label for="start_date" class="block text-gray-700 font-semibold mb-2">Start Date</label>
+                <input type="date" 
+                       id="start_date" 
+                       name="start_date"
+                       class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label for="end_date" class="block text-gray-700 font-semibold mb-2">End Date</label>
+                <input type="date" 
+                       id="end_date" 
+                       name="end_date"
+                       class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="self-end">
+                <button type="submit"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Apply
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Sales Over Time Chart -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-bold mb-6">Sales Over Time</h2>
+            <canvas id="salesChart" height="300"></canvas>
+        </div>
+
+        <!-- Top Products Chart -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-bold mb-6">Top Selling Products</h2>
+            <canvas id="productsChart" height="300"></canvas>
+        </div>
+
+        <!-- Category Distribution Chart -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-bold mb-6">Category Distribution</h2>
+            <canvas id="categoryChart" height="300"></canvas>
+        </div>
+
+        <!-- Sales Metrics -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-bold mb-6">Sales Metrics</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Average Order Value -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h3 class="text-gray-500 text-sm font-medium mb-2">Average Order Value</h3>
+                    <p class="text-2xl font-bold text-gray-900" id="avgOrderValue">0 VNĐ</p>
+                </div>
+                
+                <!-- Conversion Rate -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h3 class="text-gray-500 text-sm font-medium mb-2">Conversion Rate</h3>
+                    <p class="text-2xl font-bold text-gray-900" id="conversionRate">0%</p>
+                </div>
+                
+                <!-- Total Revenue -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h3 class="text-gray-500 text-sm font-medium mb-2">Total Revenue</h3>
+                    <p class="text-2xl font-bold text-gray-900" id="totalRevenue">0 VNĐ</p>
+                </div>
+                
+                <!-- Orders Count -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h3 class="text-gray-500 text-sm font-medium mb-2">Total Orders</h3>
+                    <p class="text-2xl font-bold text-gray-900" id="ordersCount">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Parse the sales data from the server
+    const salesData = {{ sales_data|safe }};
+    const productsData = {{ products_data|safe }};
+    const categoryData = {{ category_data|safe }};
+
+    // Sales Chart
+    const salesChart = new Chart(
+        document.getElementById('salesChart'),
+        {
+            type: 'line',
+            data: {
+                labels: salesData.labels,
+                datasets: [
+                    {
+                        label: 'Orders',
+                        data: salesData.orders,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        yAxisID: 'y',
+                    },
+                    {
+                        label: 'Revenue',
+                        data: salesData.revenue,
+                        borderColor: 'rgb(16, 185, 129)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        yAxisID: 'y1',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Orders'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Revenue (₫)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString('vi-VN') + '₫';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+    // Products Chart
+    const productsChart = new Chart(
+        document.getElementById('productsChart'),
+        {
+            type: 'bar',
+            data: {
+                labels: productsData.labels,
+                datasets: [
+                    {
+                        label: 'Quantity Sold',
+                        data: productsData.quantities,
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Units Sold'
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+    // Category Chart
+    const categoryChart = new Chart(
+        document.getElementById('categoryChart'),
+        {
+            type: 'doughnut',
+            data: {
+                labels: categoryData.labels,
+                datasets: [
+                    {
+                        data: categoryData.counts,
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(139, 92, 246, 0.8)'
+                        ]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    }
+                }
+            }
+        }
+    );
+
+    // Date range form handling
+    document.getElementById('dateRangeForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const startDate = document.getElementById('start_date').value;
+        const endDate = document.getElementById('end_date').value;
+        
+        // Make API call to get new data
+        fetch(`/api/admin/sales-data?start_date=${startDate}&end_date=${endDate}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update charts with new data
+                salesChart.data.labels = data.labels;
+                salesChart.data.datasets[0].data = data.orders;
+                salesChart.data.datasets[1].data = data.revenue;
+                salesChart.update();
+                
+                // Update metrics
+                updateMetrics(data);
+            });
+    });
+
+    // Initialize with default dates
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    document.getElementById('start_date').value = thirtyDaysAgo.toISOString().split('T')[0];
+    document.getElementById('end_date').value = today.toISOString().split('T')[0];
+
+    // Function to update metrics
+    function updateMetrics(data) {
+        const totalRevenue = data.revenue.reduce((a, b) => a + b, 0);
+        const totalOrders = data.orders.reduce((a, b) => a + b, 0);
+        
+        document.getElementById('totalRevenue').textContent = `${totalRevenue.toLocaleString('vi-VN')}₫`;
+        document.getElementById('ordersCount').textContent = totalOrders;
+        document.getElementById('avgOrderValue').textContent = `${Math.round(totalRevenue / totalOrders).toLocaleString('vi-VN')}₫`;
+        // You would need additional data for conversion rate
+    }
+</script>
+{% endblock %}

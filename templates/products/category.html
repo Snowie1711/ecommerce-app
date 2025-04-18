@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}{{ selected_category }} - Products{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-8">
+    <!-- Category Navigation -->
+    <div class="mb-8">
+        <h2 class="text-xl font-semibold mb-4">Shop by Category</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <a href="{{ url_for('products.index') }}"
+               class="px-4 py-2 rounded-lg {% if not selected_category %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-800 hover:bg-gray-200{% endif %} text-center transition">
+                All Products
+            </a>
+            {% for cat in categories %}
+            <a href="{{ url_for('products.category_view', category_name=cat.name) }}"
+               class="px-4 py-2 rounded-lg {% if selected_category == cat.name %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-800 hover:bg-gray-200{% endif %} text-center transition">
+                {{ cat.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Category Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">{{ selected_category }}</h1>
+        <p class="text-gray-600 mt-2">Browse our collection of {{ selected_category }} products</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <form method="GET" id="filterForm" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Search -->
+            <div class="col-span-1 md:col-span-3">
+                <label for="search" class="block text-gray-700 font-semibold mb-2">Search in {{ selected_category }}</label>
+                <input type="text" 
+                       id="search" 
+                       name="search" 
+                       value="{{ search or '' }}"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                       placeholder="Search by product name or description...">
+            </div>
+
+            <!-- Price Range -->
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Price Range</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" 
+                           id="min_price" 
+                           name="min_price" 
+                           value="{{ min_price or '' }}"
+                           step="1000"
+                           min="0"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                           placeholder="Min (VNĐ)">
+                   <input type="number"
+                           id="max_price"
+                           name="max_price"
+                           value="{{ max_price or '' }}"
+                           step="1000"
+                           min="0"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                           placeholder="Max (VNĐ)">
+                </div>
+            </div>
+
+            <!-- Availability Filter -->
+            <div>
+                <label for="in_stock" class="block text-gray-700 font-semibold mb-2">Availability</label>
+                <select id="in_stock" 
+                        name="in_stock"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                    <option value="">All Products</option>
+                    <option value="1" {% if in_stock == 1 %}selected{% endif %}>In Stock</option>
+                    <option value="0" {% if in_stock == 0 %}selected{% endif %}>Out of Stock</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <!-- Products Grid -->
+    <div class="mb-8" id="productsContainer">
+        {% with products_list=products %}
+            {% include "products/_product_list.html" with context %}
+        {% endwith %}
+    </div>
+
+    <!-- Pagination -->
+    {% if products.pages > 1 %}
+    <div class="mt-8 flex justify-center">
+        <nav class="flex space-x-2" aria-label="Pagination">
+            {% if products.has_prev %}
+            <a href="{{ url_for('products.category_view', category_name=selected_category, page=products.prev_num, search=search, min_price=min_price, max_price=max_price, in_stock=in_stock) }}"
+               class="pagination-link px-4 py-2 border border-gray-300 rounded-lg text-blue-600 hover:bg-blue-50">
+                Previous
+            </a>
+            {% endif %}
+            
+            {% for page_num in products.iter_pages(left_edge=2, left_current=2, right_current=2, right_edge=2) %}
+                {% if page_num %}
+                    {% if products.page == page_num %}
+                    <span class="px-4 py-2 border border-blue-600 rounded-lg bg-blue-600 text-white">
+                        {{ page_num }}
+                    </span>
+                    {% else %}
+                    <a href="{{ url_for('products.category_view', category_name=selected_category, page=page_num, search=search, min_price=min_price, max_price=max_price, in_stock=in_stock) }}"
+                       class="pagination-link px-4 py-2 border border-gray-300 rounded-lg text-blue-600 hover:bg-blue-50">
+                        {{ page_num }}
+                    </a>
+                    {% endif %}
+                {% else %}
+                <span class="px-4 py-2 text-gray-500">...</span>
+                {% endif %}
+            {% endfor %}
+            
+            {% if products.has_next %}
+            <a href="{{ url_for('products.category_view', category_name=selected_category, page=products.next_num, search=search, min_price=min_price, max_price=max_price, in_stock=in_stock) }}"
+               class="pagination-link px-4 py-2 border border-gray-300 rounded-lg text-blue-600 hover:bg-blue-50">
+                Next
+            </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const csrfToken = "{{ csrf_token() }}";
+</script>
+<script src="{{ url_for('static', filename='js/search.js') }}"></script>
+{% endblock %}

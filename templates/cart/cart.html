@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping Cart{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <h1 class="text-2xl font-bold mb-8">Shopping Cart</h1>
+
+    {% if cart_items %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Cart Items -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow">
+                {% for item in cart_items %}
+                <div class="cart-item p-6 {% if not loop.last %}border-b border-gray-200{% endif %}" data-item-id="{{ item.id }}">
+                    <div class="flex items-center space-x-4">
+                        <!-- Product Image -->
+                        <div class="flex-shrink-0 w-24 h-24">
+                            {% if item.image_url %}
+                            <img src="{{ url_for('static', filename='uploads/' + item.image_url) }}"
+                                 alt="{{ item.name }}"
+                                 class="w-full h-full object-cover rounded">
+                            {% else %}
+                            <div class="w-full h-full bg-gray-200 rounded flex items-center justify-center">
+                                <i class="fas fa-image text-gray-400 text-2xl"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Product Info -->
+                        <div class="flex-grow">
+                            <h3 class="text-lg font-semibold">
+                                <a href="{{ url_for('products.detail', id=item.product_id) }}"
+                                   class="text-gray-900 hover:text-blue-600">
+                                    {{ item.name }}
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-2">
+                                SKU: {{ item.sku }}
+                                {% if item.variant %}
+                                    <span class="ml-2">Size: {{ item.variant.size }}</span>
+                                    <span class="ml-2">Color: {{ item.variant.color_name }}</span>
+                                {% else %}
+                                    {% if item.size %}
+                                        <span class="ml-2">Size: {{ item.size }}</span>
+                                    {% endif %}
+                                    {% if item.color %}
+                                        <span class="ml-2">Color: {{ item.color.name }}</span>
+                                    {% endif %}
+                                {% endif %}
+                            </p>
+                            <p class="text-blue-600 font-bold">{{ "{:,.0f}".format(item.price) }}₫</p>
+                        </div>
+
+                        <!-- Quantity Controls -->
+                        <div class="flex items-center space-x-4">
+                            <form action="{{ url_for('cart.update_cart_item', item_id=item.id) }}"
+                                  method="POST"
+                                  data-item-id="{{ item.id }}"
+                                  class="flex items-center space-x-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="product_id" value="{{ item.product_id }}">
+                                {% if item.size %}
+                                    <input type="hidden" name="size" value="{{ item.size }}">
+                                {% endif %}
+                                {% if item.variant %}
+                                    <input type="hidden" name="variant_id" value="{{ item.variant.id }}">
+                                {% else %}
+                                    {% if item.color %}
+                                        <input type="hidden" name="color_id" value="{{ item.color.id }}">
+                                    {% endif %}
+                                {% endif %}
+                                
+                                {% set max_stock = item.variant.stock if item.variant else
+                                                 (item.color.stock if item.color else
+                                                  (item.size_info.stock if item.size_info else item.stock)) %}
+                                <select name="quantity"
+                                        class="quantity-select px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                                        data-item-id="{{ item.id }}"
+                                        data-previous-value="{{ item.quantity }}">
+                                    {% for i in range(1, max_stock + 1) %}
+                                    <option value="{{ i }}" {% if i == item.quantity %}selected{% endif %}>
+                                        {{ i }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+
+                            <!-- Subtotal -->
+                            <div class="text-gray-900 font-semibold w-24 text-right">
+                                {{ "{:,.0f}".format(item.subtotal) }}₫
+                            </div>
+
+                            <!-- Remove Button -->
+                            <form action="{{ url_for('cart.remove_from_cart', product_id=item.product_id) }}"
+                                  method="POST"
+                                  data-product-id="{{ item.product_id }}"
+                                  class="flex-shrink-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                {% if item.variant %}
+                                    <input type="hidden" name="variant_id" value="{{ item.variant.id }}">
+                                {% else %}
+                                    {% if item.color %}
+                                        <input type="hidden" name="color_id" value="{{ item.color.id }}">
+                                    {% endif %}
+                                    {% if item.size %}
+                                        <input type="hidden" name="size" value="{{ item.size }}">
+                                    {% endif %}
+                                {% endif %}
+                                <button type="submit" 
+                                        class="text-red-600 hover:text-red-800"
+                                        onclick="return confirm('Are you sure you want to remove this item?')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-lg shadow p-6 sticky top-8">
+                <h2 class="text-xl font-bold mb-6">Order Summary</h2>
+
+                <div class="space-y-4 mb-6">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Subtotal</span>
+                        <span class="font-semibold">{{ "{:,.0f}".format(subtotal) }}₫</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Shipping</span>
+                        <span class="font-semibold text-green-600">
+                            Free
+                        </span>
+                    </div>
+                    <div class="border-t border-gray-200 pt-4">
+                        <div class="flex justify-between">
+                            <span class="text-lg font-bold">Total</span>
+                            <span class="text-lg font-bold">
+                                {{ "{:,.0f}".format(total) }}₫
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-2">
+                            Miễn phí vận chuyển cho tất cả đơn hàng.
+                        </p>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('cart.checkout') }}"
+                   class="block w-full bg-blue-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                    Proceed to Checkout
+                </a>
+
+                <a href="{{ url_for('products.index') }}"
+                   class="block w-full text-center mt-4 text-blue-600 hover:text-blue-800">
+                    Continue Shopping
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <div class="mb-6">
+            <i class="fas fa-shopping-cart text-gray-400 text-6xl"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h2>
+        <p class="text-gray-600 mb-4">Please add items to your cart before proceeding with ZaloPay or other payment methods.</p>
+        <div class="flex flex-col items-center space-y-4">
+            <p class="text-gray-500 text-sm max-w-md">To use ZaloPay, you'll need to add products to your cart first. This ensures a smooth checkout process.</p>
+            <a href="{{ url_for('products.index') }}"
+               class="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                Browse Products
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% block extra_js %}
+<!-- Hidden CSRF form to ensure token is always available for JS -->
+<form id="csrf-form" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const formatPrice = (number) => {
+        const value = parseFloat(number);
+        if (isNaN(value)) {
+            return '0₫';
+        }
+        return new Intl.NumberFormat('vi-VN', {
+            maximumFractionDigits: 0
+        }).format(value) + '₫';
+    };
+
+    // Get CSRF token function
+    function getCsrfToken() {
+        const csrfInput = document.querySelector('input[name="csrf_token"]');
+        if (!csrfInput) {
+            console.error('CSRF token not found in the DOM');
+            return null;
+        }
+        return csrfInput.value;
+    }
+
+    // Handle quantity select changes
+    document.querySelectorAll('.quantity-select').forEach(select => {
+        // Add change event listener
+        select.addEventListener('change', async function(e) {
+            e.preventDefault();
+            
+            const form = this.closest('form');
+            if (!form) return;
+            
+            const currentValue = parseInt(this.value);
+            const previousValue = parseInt(this.dataset.previousValue);
+            const itemId = this.dataset.itemId;
+            
+            if (!itemId) {
+                console.error('No item ID found');
+                return;
+            }
+            
+            try {
+                this.disabled = true;
+                // Get CSRF token
+                const csrfToken = getCsrfToken();
+                if (!csrfToken) {
+                    throw new Error('CSRF token not found. Please refresh the page.');
+                }
+                
+                const response = await fetch(`/cart/update/${itemId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                        'X-CSRF-Token': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        quantity: currentValue,
+                        csrf_token: csrfToken
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Failed to update cart');
+                }
+
+                // Update the previous value after successful update
+                this.dataset.previousValue = currentValue.toString();
+
+                // Find and update subtotal
+                const container = this.closest('.flex.items-center.space-x-4');
+                const subtotalElement = container?.querySelector('.text-gray-900.font-semibold.w-24');
+                if (subtotalElement && data.subtotal) {
+                    subtotalElement.textContent = formatPrice(data.subtotal);
+                }
+
+                // Update order summary
+                const summarySubtotal = document.querySelector('.space-y-4 .flex.justify-between:first-child .font-semibold');
+                const summaryTotal = document.querySelector('.border-t.border-gray-200 .text-lg.font-bold:last-child');
+                
+                if (summarySubtotal && data.subtotal) {
+                    summarySubtotal.textContent = formatPrice(data.subtotal);
+                }
+                if (summaryTotal && data.total) {
+                    summaryTotal.textContent = formatPrice(data.total);
+                }
+
+                // Update shipping message
+                const shippingMessage = document.querySelector('.text-sm.text-gray-500.mt-2');
+                if (shippingMessage && data.subtotal < 1000000) {
+                    const remaining = 1000000 - data.subtotal;
+                    shippingMessage.textContent = `Add ${formatPrice(remaining)} more to get free shipping!`;
+                } else if (shippingMessage) {
+                    shippingMessage.textContent = '';
+                }
+
+                // Notify other components
+                document.dispatchEvent(new CustomEvent('cartUpdated'));
+            } catch (error) {
+                console.error('Error:', error);
+                // Revert to previous value on error
+                this.value = previousValue.toString();
+                alert(error.message || 'An error occurred while updating the cart');
+            } finally {
+                this.disabled = false;
+            }
+        });
+    });
+
+    // Store initial values for all quantity selects
+    document.querySelectorAll('select[name="quantity"]').forEach(select => {
+        select.setAttribute('data-previous-value', select.value);
+    });
+
+    // Update cart forms to dispatch cartUpdated event for remove actions
+    document.querySelectorAll('form').forEach(form => {
+        if (form.action.includes('remove_from_cart')) {
+            form.addEventListener('submit', function(e) {
+                setTimeout(() => {
+                    document.dispatchEvent(new CustomEvent('cartUpdated'));
+                }, 100);
+            });
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

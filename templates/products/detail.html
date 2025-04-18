@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block extra_css %}
+<link href="{{ url_for('static', filename='css/product-rating.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <nav class="mb-8" aria-label="Breadcrumb">
+        <ol class="flex space-x-2 text-gray-600">
+            <li><a href="{{ url_for('main.home') }}" class="hover:text-blue-600">Home</a></li>
+            <li><span class="mx-2">/</span></li>
+            <li><a href="{{ url_for('products.index') }}" class="hover:text-blue-600">Products</a></li>
+            <li><span class="mx-2">/</span></li>
+            <li><a href="{{ url_for('products.index', category=product.category.name) }}" class="hover:text-blue-600">{{ product.category.name }}</a></li>
+            <li><span class="mx-2">/</span></li>
+            <li class="text-gray-900 font-semibold">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 p-8">
+            <!-- Product Images -->
+            <div class="space-y-4">
+                <!-- Main Image Display -->
+                <div class="relative main-image-container">
+                    {% if product.has_discount %}
+                    <div class="absolute top-4 left-4 bg-red-500 text-white px-4 py-2 rounded-full z-10">
+                        -{{ product.discount_percentage }}% OFF
+                    </div>
+                    {% endif %}
+                    {% set image_url = product.image_url_or_placeholder %}
+                    {% if image_url == 'images/placeholder.jpg' %}
+                        <div class="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-image text-gray-400 text-6xl"></i>
+                        </div>
+                    {% else %}
+                        <img src="{{ url_for('static', filename='uploads/' + image_url) }}"
+                             alt="{{ product.name }}"
+                             id="mainImage"
+                             class="w-full h-96 object-cover rounded-lg cursor-pointer"
+                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center\'><i class=\'fas fa-image text-gray-400 text-6xl\'></i></div>';">
+                    {% endif %}
+                    
+                    {% if not product.is_active %}
+                        <div class="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-full">
+                            Discontinued
+                        </div>
+                    {% elif product.stock < 10 and product.stock > 0 %}
+                        <div class="absolute top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-full">
+                            Low Stock
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Thumbnails -->
+                {% if product.images and product.images|length > 1 %}
+                <div class="grid grid-cols-5 gap-2 mt-4">
+                    {% for image in product.images %}
+                    <div class="thumbnail-container cursor-pointer {% if loop.first %}border-2 border-blue-500{% endif %}"
+                         onclick="switchMainImage('{{ url_for('static', filename='uploads/' + image.image_url) }}', this)">
+                        <img src="{{ url_for('static', filename='uploads/' + image.image_url) }}"
+                             alt="{{ product.name }} - Image {{ loop.index }}"
+                             class="w-full aspect-square object-cover rounded-lg hover:opacity-75 transition-opacity"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder.jpg') }}'; this.parentElement.style.display='none';">
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Product Info -->
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ product.name }}</h1>
+                
+                <div class="mb-6">
+                    <div class="flex items-baseline space-x-4 mb-2">
+                        <div class="text-2xl font-bold text-blue-600">{{ product.price_display }}₫</div>
+                        {% if product.has_discount %}
+                        <div class="text-xl text-gray-400 line-through">{{ product.original_price_display }}₫</div>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-gray-600">SKU: {{ product.sku }}</span>
+                        <span class="text-gray-600">Category:
+                            <a href="{{ url_for('products.index', category=product.category.name) }}"
+                               class="text-blue-600 hover:text-blue-800">
+                                {{ product.category.name }}
+                            </a>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="prose max-w-none mb-8">
+                    <p class="text-gray-700">{{ product.description }}</p>
+                </div>
+
+                <!-- Stock Status -->
+                <div class="mb-8">
+                    {% if not product.has_sizes %}
+                        {% if product.stock > 0 %}
+                        <div class="flex items-center text-green-600 mb-4">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            <span>In Stock ({{ product.stock }} available)</span>
+                        </div>
+                        {% else %}
+                        <div class="flex items-center text-red-600 mb-4">
+                            <i class="fas fa-times-circle mr-2"></i>
+                            <span>Out of Stock</span>
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                {% if product.is_active and product.is_in_stock %}
+                <!-- Add to Cart Form -->
+                <form action="{{ url_for('cart.add_to_cart', product_id=product.id) }}" method="POST" class="mb-8">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    {% if product.has_sizes %}
+                    <!-- Size Selection -->
+                    <div class="mb-4">
+                        <label for="size" class="block text-gray-700 font-semibold mb-2">Select Size:</label>
+                        <select id="size"
+                                name="size"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                onchange="updateQuantityOptions()">
+                            <option value="">Choose a size</option>
+                            {% for size in product.sizes %}
+                                {% if size.stock > 0 %}
+                                <option value="{{ size.size }}" data-stock="{{ size.stock }}">
+                                    {{ size.size }} - {{ size.stock }} available
+                                </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <!-- Color Selection -->
+                    {% if product.colors %}
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-semibold mb-2">Select Color:</label>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {% for color in product.colors %}
+                                {% if color.stock > 0 %}
+                                <div class="flex items-center space-x-2">
+                                    <input type="radio"
+                                           id="color-{{ color.id }}"
+                                           name="color_id"
+                                           value="{{ color.id }}"
+                                           data-stock="{{ color.stock }}"
+                                           class="hidden peer"
+                                           onchange="updateQuantityOptions()">
+                                    <label for="color-{{ color.id }}"
+                                           class="flex items-center space-x-2 px-4 py-2 border-2 border-gray-200 rounded-lg cursor-pointer peer-checked:border-blue-500 hover:bg-gray-50">
+                                        <div class="w-6 h-6 rounded-full border border-gray-300"
+                                             style="background-color: {{ color.color_code }}"></div>
+                                        <span>{{ color.color_name }} ({{ color.stock }})</span>
+                                    </label>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Quantity Selection -->
+                    <div class="flex items-center space-x-4 mb-4">
+                        <label for="quantity" class="text-gray-700 font-semibold">Quantity:</label>
+                        <select id="quantity"
+                                name="quantity"
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                {% if product.has_sizes or product.colors %}disabled{% endif %}>
+                            {% if product.has_sizes or product.colors %}
+                                <option value="">Select options first</option>
+                            {% else %}
+                                {% for i in range(1, min(product.stock + 1, 11)) %}
+                                <option value="{{ i }}">{{ i }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <button type="submit"
+                            class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                        <i class="fas fa-shopping-cart mr-2"></i>
+                        Add to Cart
+                    </button>
+                </form>
+                {% endif %}
+
+                <!-- Customer Reviews -->
+                <div class="mt-8 mb-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-xl font-semibold">Customer Reviews</h4>
+                        {% if current_user.is_authenticated %}
+                            {% set show_review_button = [] %}
+                            {% for order in current_user.orders if not show_review_button %}
+                                {% if order.status == 'DELIVERED' %}
+                                    {% for item in order.items if not show_review_button %}
+                                        {% if item.product_id == product.id %}
+                                            {% if not order.reviews|selectattr('product_id', 'equalto', product.id)|list %}
+                                                {% if show_review_button.append((true, order.id)) %}{% endif %}
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if show_review_button %}
+                            <button type="button"
+                                    class="write-review btn btn-primary"
+                                    data-product-id="{{ product.id }}"
+                                    data-product-name="{{ product.name }}"
+                                    data-order-id="{{ show_review_button[0][1] }}">
+                                Write Review
+                            </button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    
+                    {% if reviews %}
+                        {% for review in reviews %}
+                            <div class="bg-gray-50 rounded-lg p-4 mb-4 shadow-sm">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div>
+                                        <h6 class="font-semibold">{{ review.user.first_name or 'User' }}</h6>
+                                        <div class="flex items-center text-yellow-400">
+                                            {% for i in range(1, 6) %}
+                                                {% if i <= review.rating %}
+                                                    <i class="fas fa-star"></i>
+                                                {% else %}
+                                                    <i class="far fa-star"></i>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="text-sm text-gray-500">
+                                        {{ review.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                    </div>
+                                </div>
+                                <p class="text-gray-700">{{ review.comment }}</p>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-gray-500 italic">This product has no reviews yet.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Additional Info -->
+                <div class="border-t border-gray-200 pt-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Shipping Info -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Shipping Information</h3>
+                            <ul class="space-y-2 text-gray-600">
+                                <li class="flex items-center">
+                                    <i class="fas fa-truck mr-2"></i>
+                                    Free shipping for orders from 1,000,000₫
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-clock mr-2"></i>
+                                    Delivery within 3-5 business days
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Return Policy -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Return Policy</h3>
+                            <ul class="space-y-2 text-gray-600">
+                                <li class="flex items-center">
+                                    <i class="fas fa-undo mr-2"></i>
+                                    30-day return policy
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-shield-alt mr-2"></i>
+                                    Money-back guarantee
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
+    <div class="max-w-4xl w-full mx-4">
+        <div class="relative">
+            <img id="modalImage" src="" alt="" class="w-full object-contain max-h-[80vh]">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-white text-xl hover:text-gray-300">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Common function to update quantity options based on available stock
+    function updateQuantityOptions() {
+        const quantitySelect = document.getElementById('quantity');
+        let maxStock = {{ product.stock }};
+        let currentQuantity = quantitySelect.value ? parseInt(quantitySelect.value) : 1;
+
+        {% if product.has_sizes %}
+        const sizeSelect = document.getElementById('size');
+        const selectedOption = sizeSelect.options[sizeSelect.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            maxStock = parseInt(selectedOption.getAttribute('data-stock'));
+        }
+        {% endif %}
+
+        {% if product.colors %}
+        const selectedColor = document.querySelector('input[name="color_id"]:checked');
+        if (selectedColor) {
+            const colorStock = parseInt(selectedColor.getAttribute('data-stock'));
+            if (!isNaN(colorStock)) {
+                maxStock = maxStock === {{ product.stock }} ? colorStock : Math.min(maxStock, colorStock);
+            }
+        }
+        {% endif %}
+
+        // Enable quantity selection based on product type
+        let shouldEnableQuantity = true;
+        let message = '';
+
+        {% if product.has_sizes and product.colors %}
+        const sizeSelected = sizeSelect && sizeSelect.value;
+        const colorSelected = document.querySelector('input[name="color_id"]:checked');
+        shouldEnableQuantity = sizeSelected && colorSelected;
+        if (!shouldEnableQuantity) {
+            message = !sizeSelected && !colorSelected ? "Select size and color" :
+                     !sizeSelected ? "Select size" : "Select color";
+        }
+        {% elif product.has_sizes %}
+        const sizeSelected = sizeSelect && sizeSelect.value;
+        shouldEnableQuantity = sizeSelected;
+        if (!shouldEnableQuantity) {
+            message = "Select size";
+        }
+        {% elif product.colors %}
+        const colorSelected = document.querySelector('input[name="color_id"]:checked');
+        shouldEnableQuantity = colorSelected;
+        if (!shouldEnableQuantity) {
+            message = "Select color";
+        }
+        {% endif %}
+
+        // Update quantity options
+        quantitySelect.innerHTML = '';
+
+        if (shouldEnableQuantity) {
+            if (maxStock > 0) {
+                for (let i = 1; i <= Math.min(maxStock, 10); i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i;
+                    if (i === currentQuantity && currentQuantity <= maxStock) {
+                        option.selected = true;
+                    }
+                    quantitySelect.appendChild(option);
+                }
+                quantitySelect.disabled = false;
+            } else {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "Out of stock";
+                quantitySelect.appendChild(option);
+                quantitySelect.disabled = true;
+            }
+        } else {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = message || "Select options first";
+            quantitySelect.appendChild(option);
+            quantitySelect.disabled = true;
+        }
+    }
+
+    {% if product.has_sizes %}
+    // Initialize size-based quantity options
+    document.getElementById('size').addEventListener('change', updateQuantityOptions);
+    {% endif %}
+
+    {% if product.colors %}
+    // Initialize color-based quantity options
+    document.querySelectorAll('input[name="color_id"]').forEach(radio => {
+        radio.addEventListener('change', updateQuantityOptions);
+    });
+    {% endif %}
+
+    {% if not product.has_sizes and not product.colors %}
+    // Handle quantity changes for non-sized products
+    document.getElementById('quantity').addEventListener('change', function() {
+        if (this.value > {{ product.stock }}) {
+            alert('Selected quantity exceeds available stock');
+            this.value = {{ product.stock }};
+        }
+    });
+    {% endif %}
+
+    // Image gallery functionality
+    function switchMainImage(imageUrl, thumbnailElement) {
+        document.getElementById('mainImage').src = imageUrl;
+        // Update thumbnail highlighting
+        document.querySelectorAll('.thumbnail-container').forEach(container => {
+            container.classList.remove('border-2', 'border-blue-500');
+        });
+        thumbnailElement.classList.add('border-2', 'border-blue-500');
+    }
+
+    // Image modal functionality
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    const mainImage = document.getElementById('mainImage');
+
+    if (mainImage) {
+        mainImage.addEventListener('click', function() {
+            modalImage.src = this.src;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        });
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    // Close modal on background click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+</script>
+
+<!-- Review Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewModalLabel">Write a Review</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reviewForm">
+                    <input type="hidden" id="productIdInput" name="product_id">
+                    <p>Product: <span id="productName" class="font-semibold"></span></p>
+                    
+                    <!-- Rating Stars -->
+                    <div class="mb-3">
+                        <label class="form-label">Rating:</label>
+                        <div class="rating">
+                            {% for i in range(5, 0, -1) %}
+                            <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}">
+                            <label for="star{{ i }}">☆</label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Comment -->
+                    <div class="mb-3">
+                        <label for="reviewComment" class="form-label">Your Review:</label>
+                        <textarea class="form-control" id="reviewComment" rows="3" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="submitReview">Submit Review</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if current_user.is_authenticated %}
+<script src="{{ url_for('static', filename='js/product-review.js') }}"></script>
+{% endif %}
+{% endblock %}

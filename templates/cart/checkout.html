@@ -1,0 +1,285 @@
+{% extends "base.html" %} 
+
+{% block title %}Checkout{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <h1 class="text-2xl font-bold mb-8">Checkout</h1>
+
+    {% if not cart_items %}
+    <div class="text-center py-12">
+        <div class="mb-6">
+            <i class="fas fa-shopping-cart text-gray-400 text-6xl"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h2>
+        <p class="text-gray-600 mb-6">Please add items to your cart before proceeding to checkout.</p>
+        <a href="{{ url_for('products.index') }}"
+           class="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+            Browse Products
+        </a>
+    </div>
+    {% else %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Checkout Form -->
+        <div class="lg:col-span-2">
+            <form method="POST" action="{{ url_for('cart.checkout') }}" id="checkoutForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="same_as_shipping" value="true">
+                <!-- Add hidden fields for pricing -->
+                <input type="hidden" name="cart_total" id="cart_total" value="{{ total }}">
+                <input type="hidden" name="subtotal" id="subtotal" value="{{ subtotal }}">
+                <input type="hidden" name="shipping_cost" id="shipping_cost" value="{{ shipping_cost }}">
+                <!-- Add hidden field for order ID that will be set after order creation -->
+                <input type="hidden" name="order_id" id="order_id" value="">
+
+                <!-- Shipping Information -->
+                <div class="bg-white rounded-lg shadow p-6 mb-8">
+                    <h2 class="text-xl font-bold mb-6">Shipping Information</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="shipping_first_name" class="block text-gray-700 font-semibold mb-2">First Name</label>
+                            <input type="text"
+                                   id="shipping_first_name"
+                                   name="shipping_first_name"
+                                   value="{{ current_user.first_name }}"
+                                   required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="shipping_last_name" class="block text-gray-700 font-semibold mb-2">Last Name</label>
+                            <input type="text"
+                                   id="shipping_last_name"
+                                   name="shipping_last_name"
+                                   value="{{ current_user.last_name }}"
+                                   required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        
+                        <div class="md:col-span-2">
+                            <label for="shipping_address" class="block text-gray-700 font-semibold mb-2">Street Address</label>
+                            <input type="text"
+                                   id="shipping_address"
+                                   name="shipping_address"
+                                   value="{{ current_user.address_line1 }}"
+                                   required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label for="shipping_address2" class="block text-gray-700 font-semibold mb-2">Apartment, suite, etc. (optional)</label>
+                            <input type="text"
+                                   id="shipping_address2"
+                                   name="shipping_address2"
+                                   value="{{ current_user.address_line2 }}"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="shipping_city" class="block text-gray-700 font-semibold mb-2">City</label>
+                            <input type="text"
+                                   id="shipping_city"
+                                   name="shipping_city"
+                                   value="{{ current_user.city }}"
+                                   required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="shipping_state" class="block text-gray-700 font-semibold mb-2">State</label>
+                            <input type="text"
+                                   id="shipping_state"
+                                   name="shipping_state"
+                                   value="{{ current_user.state }}"
+                                   required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="shipping_zip" class="block text-gray-700 font-semibold mb-2">ZIP Code</label>
+                            <input type="text"
+                                   id="shipping_zip"
+                                   name="shipping_zip"
+                                   value="{{ current_user.postal_code }}"
+                                   required
+                                   pattern="[0-9]{5}"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="shipping_phone" class="block text-gray-700 font-semibold mb-2">Phone Number</label>
+                            <input type="tel"
+                                   id="shipping_phone"
+                                   name="shipping_phone"
+                                   value="{{ current_user.phone_number }}"
+                                   required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Information -->
+                <div class="bg-white rounded-lg shadow p-6 mb-8">
+                    <h2 class="text-xl font-bold mb-6">Payment Information</h2>
+                    
+                    <div class="mb-6">
+                        <label class="block text-gray-700 font-semibold mb-3">Select Payment Method</label>
+                        <div class="space-y-3">
+                            <div class="flex items-center">
+                                <input type="radio" id="payment_payos" name="payment_method" value="payos"
+                                       class="h-5 w-5 text-blue-600" checked>
+                                <label for="payment_payos" class="ml-3 block text-gray-700 flex items-center">
+                                    <span class="text-blue-600 font-medium">PayOS (Online Payment)</span>
+                                </label>
+                            </div>
+                            
+                            <div class="flex items-center">
+                                <input type="radio" id="payment_cod" name="payment_method" value="cod"
+                                       class="h-5 w-5 text-blue-600">
+                                <label for="payment_cod" class="ml-3 block text-gray-700">
+                                    Cash on Delivery (COD)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="payos_info" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <svg class="h-6 w-6 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p class="text-blue-700 font-medium">Secure Online Payment with PayOS</p>
+                        </div>
+                        <p class="text-sm text-blue-600 mt-2">You will be redirected to PayOS to complete your payment securely.</p>
+                    </div>
+                    
+                    <div id="cod_info" class="bg-gray-50 border border-gray-200 rounded-lg p-4 hidden">
+                        <div class="flex items-center">
+                            <svg class="h-6 w-6 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                            </svg>
+                            <p class="text-gray-700 font-medium">Cash on Delivery</p>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-2">Pay when your order is delivered to your doorstep.</p>
+                    </div>
+                </div>
+                <!-- Order Summary -->
+                <div class="bg-white rounded-lg shadow p-6 mb-8">
+                    <h2 class="text-xl font-bold mb-6">Order Summary</h2>
+
+                    <div class="space-y-4">
+                    {% for item in cart_items %}
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="font-semibold">{{ item.name }}</p>
+                            <div class="text-sm text-gray-600">
+                                <p>Qty: {{ item.quantity }}</p>
+                                {% if item.size %}
+                                <p>Size: {{ item.size }}</p>
+                                {% endif %}
+                                {% if item.color %}
+                                <p class="flex items-center">
+                                    Color:
+                                    <span class="ml-1 flex items-center">
+                                        <span class="w-4 h-4 rounded-full border border-gray-300 mr-1"
+                                              style="background-color: {{ item.color.code }}"></span>
+                                        {{ item.color.name }}
+                                    </span>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="font-semibold">{{ "{:,.0f}".format(item.subtotal) }}₫</span>
+                    </div>
+                    {% endfor %}
+
+                        <div class="border-t border-gray-200 pt-4 mt-4">
+                            <div class="flex justify-between mb-2">
+                                <span class="text-gray-600">Subtotal</span>
+                                <span class="font-semibold" id="subtotal-display">{{ "{:,.0f}".format(subtotal) }}₫</span>
+                            </div>
+                            <div class="flex justify-between mb-2">
+                                <span class="text-gray-600">Shipping</span>
+                                <span class="font-semibold">
+                                    {% if shipping_cost == 0 %}
+                                    Free
+                                    {% else %}
+                                    {{ "{:,.0f}".format(shipping_cost) }}₫
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="border-t border-gray-200 pt-4 mt-2">
+                                <div class="flex justify-between">
+                                    <span class="text-lg font-bold">Total</span>
+                                    <span class="text-lg font-bold">
+                                        <span id="total-display">{{ "{:,.0f}".format(total) }}₫</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="mt-6 space-y-3">
+                            <button type="submit"
+                                    id="placeOrderBtn"
+                                    class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                                Place Order
+                            </button>
+                        </div>
+
+                        <!-- Status and Messages -->
+                        <div class="mt-4">
+                            <div id="orderStatus" class="text-center hidden">
+                                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                <p class="text-gray-600">Processing your order...</p>
+                            </div>
+
+                            <div id="errorDisplay" class="space-y-2"></div>
+
+                            <div id="successMessage" class="mt-4 hidden">
+                                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
+                                    <p class="font-semibold">Order placed successfully!</p>
+                                    <p class="text-sm">Redirecting to your order history...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-sm text-gray-500 mt-4 text-center">
+                            By placing your order, you agree to our
+                            <a href="#" class="text-blue-600 hover:text-blue-800">Terms of Service</a>
+                            and
+                            <a href="#" class="text-blue-600 hover:text-blue-800">Privacy Policy</a>
+                        </p>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Basic payment method toggle functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const payosRadio = document.getElementById('payment_payos');
+    const codRadio = document.getElementById('payment_cod');
+    const payosInfo = document.getElementById('payos_info');
+    const codInfo = document.getElementById('cod_info');
+    
+    // Payment method toggle
+    payosRadio.addEventListener('change', function() {
+        payosInfo.classList.remove('hidden');
+        codInfo.classList.add('hidden');
+    });
+    
+    codRadio.addEventListener('change', function() {
+        payosInfo.classList.add('hidden');
+        codInfo.classList.remove('hidden');
+    });
+});
+</script>
+<script src="{{ url_for('static', filename='js/checkout-payment.js') }}"></script>
+{% endblock %}

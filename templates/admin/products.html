@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Products - Admin{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-6">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold mb-4">Manage Products</h1>
+            <form method="GET" action="{{ url_for('admin.manage_products') }}" class="flex gap-4" id="productSearchForm">
+                <input type="hidden" name="page" value="{{ products.page }}" id="pageNumberInput">
+                <div class="flex gap-4">
+                    <div>
+                        <input type="text"
+                               id="searchInput"
+                               name="search"
+                               value="{{ search or '' }}"
+                               placeholder="Search by name..."
+                               class="mt-1 block w-64 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <button type="submit"
+                            class="mt-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                        Search
+                    </button>
+                </div>
+                <div>
+                    <select id="categoryFilter" name="category"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.name }}" {% if category == cat.name %}selected{% endif %}>
+                            {{ cat.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <select id="sortBy" name="sort"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="name" {% if sort == 'name' %}selected{% endif %}>Sort by Name</option>
+                        <option value="price" {% if sort == 'price' %}selected{% endif %}>Sort by Price</option>
+                        <option value="stock" {% if sort == 'stock' %}selected{% endif %}>Sort by Stock</option>
+                        <option value="category" {% if sort == 'category' %}selected{% endif %}>Sort by Category</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        <a href="{{ url_for('admin.create_product') }}"
+           class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 h-fit">
+            Add New Product
+        </a>
+    </div>
+
+    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for product in products.items %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% set image_url = product.image_url_or_placeholder %}
+                        {% if image_url == 'images/placeholder.jpg' %}
+                            <div class="h-16 w-16 bg-gray-100 flex items-center justify-center rounded">
+                                <i class="fas fa-image text-gray-400 text-xl"></i>
+                            </div>
+                        {% else %}
+                            <img src="{{ url_for('static', filename='uploads/' + image_url) }}"
+                                 alt="{{ product.name }}"
+                                 class="h-16 w-16 object-cover rounded"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'h-16 w-16 bg-gray-100 flex items-center justify-center rounded\'><i class=\'fas fa-image text-gray-400 text-xl\'></i></div>';">
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-sm font-medium text-gray-900">{{ product.name }}</div>
+                        <div class="text-sm text-gray-500">SKU: {{ product.sku }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                            {{ product.category.name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ "{:,.0f}".format(product.price) }}₫</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="{% if product.stock < 10 %}text-red-600{% else %}text-gray-900{% endif %}">
+                            {{ product.stock }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            {% if product.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ 'Active' if product.is_active else 'Inactive' }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <a href="{{ url_for('admin.edit_product', id=product.id) }}"
+                           class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
+                        <button onclick="deleteProduct({{ product.id }})"
+                                class="text-red-600 hover:text-red-900">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if products.pages > 1 %}
+    <div class="flex justify-center mt-6">
+        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+            {% if products.has_prev %}
+            <a href="{{ url_for('admin.manage_products', page=products.prev_num, search=search, category=category, sort=sort) }}"
+               class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Previous
+            </a>
+            {% endif %}
+            
+            {% for page_num in products.iter_pages() %}
+                {% if page_num %}
+                    <a href="{{ url_for('admin.manage_products', page=page_num, search=search, category=category, sort=sort) }}"
+                       class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium {% if page_num == products.page %}text-indigo-600 bg-indigo-50{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                        {{ page_num }}
+                    </a>
+                {% else %}
+                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                        ...
+                    </span>
+                {% endif %}
+            {% endfor %}
+            
+            {% if products.has_next %}
+            <a href="{{ url_for('admin.manage_products', page=products.next_num, search=search, category=category, sort=sort) }}"
+               class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Next
+            </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Load admin.js first so its functions are available -->
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+
+<script>
+    // Make the CSRF token available to the admin.js script
+    const csrfToken = "{{ csrf_token() }}";
+
+    // Form elements
+    const searchForm = document.getElementById('productSearchForm');
+    const searchInput = document.getElementById('searchInput');
+    const pageNumberInput = document.getElementById('pageNumberInput');
+
+    // Helper function to submit form with specific page
+    function submitFormWithPage(pageNum) {
+        pageNumberInput.value = pageNum;
+        searchForm.submit();
+    }
+
+    // Handle form submission
+    searchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitFormWithPage(1); // Reset to page 1 on new search
+    });
+
+    // Handle pagination
+    function changePage(pageNum) {
+        submitFormWithPage(pageNum);
+    }
+</script>
+{% endblock %}

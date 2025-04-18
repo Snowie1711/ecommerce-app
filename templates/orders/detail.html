@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+
+{% block title %}Order #{{ order.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h2>Order #{{ order.id }}</h2>
+    
+    <!-- Debug information -->
+    <div class="alert alert-info">
+        <p>Trạng thái đơn hàng: {{ order.status.value }}</p>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Order Items</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Price</th>
+                                    <th>Quantity</th>
+                                    <th>Subtotal</th>
+                                    {% if order.status.value == 'DELIVERED' %}
+                                    <th>Rating</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.items %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('products.detail', id=item.product.id) }}">
+                                            {{ item.product.name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <!-- Fixed price display for large numbers -->
+                                        {{ item.price|int|format_number }} VNĐ
+                                    </td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td>
+                                        <!-- Fixed subtotal calculation -->
+                                        {{ (item.price * item.quantity)|int|format_number }} VNĐ
+                                    </td>
+                                    {% if order.status.value == 'DELIVERED' %}
+                                    <td>
+                                        {% if item.product.id in reviewed_product_ids %}
+                                            <span class="text-success">Reviewed</span>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-primary write-review"
+                                                    data-product-id="{{ item.product.id }}"
+                                                    data-product-name="{{ item.product.name }}"
+                                                    data-order-id="{{ order.id }}">
+                                                Write Review
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>Subtotal:</strong></td>
+                                    <td>{{ order.subtotal|int|format_number }} VNĐ</td>
+                                    {% if order.status.value == 'DELIVERED' %}<td></td>{% endif %}
+                                </tr>
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>Shipping:</strong></td>
+                                    <td>
+                                        {% if order.shipping_cost == 0 %}
+                                            Free
+                                        {% else %}
+                                            {{ order.shipping_cost|int|format_number }} VNĐ
+                                        {% endif %}
+                                    </td>
+                                    {% if order.status.value == 'DELIVERED' %}<td></td>{% endif %}
+                                </tr>
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                                    <td>
+                                        {% if order.shipping_cost > 0 %}
+                                            Subtotal: {{ order.subtotal|int|format_number }} VNĐ<br>
+                                            Shipping: {{ order.shipping_cost|int|format_number }} VNĐ<br>
+                                        {% endif %}
+                                        Total: {{ order.total|int|format_number }} VNĐ
+                                    </td>
+                                    {% if order.status.value == 'DELIVERED' %}<td></td>{% endif %}
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <!-- Order Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Order Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Date:</strong> {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    
+                    <p>
+                        <strong>Status:</strong> 
+                        {% if order.status.value == 'PENDING_PAYMENT' %}
+                            <span class="badge text-bg-warning">Pending Payment</span>
+                        {% elif order.status.value == 'PAID' %}
+                            <span class="badge text-bg-success">Paid</span>
+                        {% elif order.status.value == 'PROCESSING' %}
+                            <span class="badge text-bg-info">Processing</span>
+                        {% elif order.status.value == 'SHIPPED' %}
+                            <span class="badge text-bg-info">Shipped</span>
+                        {% elif order.status.value == 'DELIVERED' %}
+                            <span class="badge text-bg-primary">Delivered</span>
+                        {% elif order.status.value == 'CANCELLED' %}
+                            <span class="badge text-bg-danger">Cancelled</span>
+                        {% elif order.status.value == 'REFUNDED' %}
+                            <span class="badge text-bg-secondary">Refunded</span>
+                        {% else %}
+                            <span class="badge text-bg-secondary">{{ order.status.value }}</span>
+                        {% endif %}
+                    </p>
+
+                    {% if order.cancellation_requested %}
+                        <div class="alert alert-info">
+                            <p><strong>Cancellation Status:</strong>
+                                {% if order.cancellation_approved == None %}
+                                    <span class="badge text-bg-warning">Pending Review</span>
+                                {% elif order.cancellation_approved %}
+                                    <span class="badge text-bg-success">Approved</span>
+                                {% else %}
+                                    <span class="badge text-bg-danger">Rejected</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Reason:</strong> {{ order.cancellation_reason }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Payment Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Payment Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Payment Method:</strong> {{ order.payment_method }}</p>
+                </div>
+            </div>
+
+            <!-- Shipping Address -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Shipping Address</h5>
+                </div>
+                <div class="card-body">
+                    <p class="order-address">{{ order.shipping_address }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Review Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewModalLabel">Rate Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reviewForm">
+                    <input type="hidden" id="productIdInput" name="productId">
+                    
+                    <div class="mb-3">
+                        <h5 id="productName"></h5>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label d-block">Rating</label>
+                        <div class="rating">
+                            <input type="radio" id="star5" name="rating" value="5"/><label for="star5" title="Excellent">★</label>
+                            <input type="radio" id="star4" name="rating" value="4"/><label for="star4" title="Very Good">★</label>
+                            <input type="radio" id="star3" name="rating" value="3"/><label for="star3" title="Good">★</label>
+                            <input type="radio" id="star2" name="rating" value="2"/><label for="star2" title="Fair">★</label>
+                            <input type="radio" id="star1" name="rating" value="1"/><label for="star1" title="Poor">★</label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reviewComment" class="form-label">Review</label>
+                        <textarea class="form-control" id="reviewComment" rows="3" placeholder="Write your review here..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="submitReview">Submit Review</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/product-rating.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/product-review.js') }}"></script>
+{% endblock %}

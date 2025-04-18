@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Cancellation Requests - Admin{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Order Cancellation Requests</h2>
+    
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Date</th>
+                            <th>Total Amount</th>
+                            <th>Reason</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('admin.order_detail', id=order.id) }}">#{{ order.id }}</a>
+                            </td>
+                            <td>{{ order.user.email }}</td>
+                            <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ "{:,.0f}".format(order.total_amount) }} VNĐ</td>
+                            <td>{{ order.cancellation_reason }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('admin.handle_cancellation', order_id=order.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="approve">
+                                    <button type="submit" class="btn btn-success btn-sm">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+                                </form>
+                                <button onclick="rejectCancel({{ order.id }}, this)" class="btn btn-danger btn-sm" data-order-id="{{ order.id }}">
+                                    <i class="fas fa-times"></i> Reject
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not orders %}
+                        <tr>
+                            <td colspan="6" class="text-center">No cancellation requests found.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

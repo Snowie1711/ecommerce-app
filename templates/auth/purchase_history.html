@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Purchase History{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Purchase History</h1>
+    
+    {% if orders %}
+        {% for order in orders.items %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Order #{{ order['id'] }}</h5>
+                    <small class="text-muted">Ordered on {{ order['created_at_local'] }}</small>
+                </div>
+                <span class="badge {% if order['status'] == 'DELIVERED' %}bg-success
+                      {% elif order['status'] == 'CANCELLED' %}bg-danger
+                      {% elif order['status'] == 'PROCESSING' %}bg-primary
+                      {% elif order['status'] == 'SHIPPED' %}bg-info
+                      {% else %}bg-warning{% endif %}">
+                    {{ order['status']|title }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Order Summary</h6>
+                        <p class="mb-1">Total Items: {{ order['item_count'] }}</p>
+                        <p class="mb-1">Total Amount: {{ "{:,.0f}".format(order['total_amount']) }}₫</p>
+                        <p class="mb-1">Payment Method: {{ order['payment_method']|title }}</p>
+                        {% if order['tracking_number'] %}
+                        <p class="mb-1">Tracking Number: {{ order['tracking_number'] }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Shipping Address</h6>
+                        <p class="mb-1">{{ order['shipping_address'] }}</p>
+                    </div>
+                </div>
+                <hr>
+                <h6>Order Items</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order['items'] %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('products.detail', id=item['product']['id']) }}">
+                                        {{ item['product']['name'] }}
+                                    </a>
+                                </td>
+                                <td>{{ "{:,.0f}".format(item['price']) }}₫</td>
+                                <td>{{ item['quantity'] }}</td>
+                                <td>{{ "{:,.0f}".format(item['subtotal']) }}₫</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% if orders.pages > 1 %}
+        <nav aria-label="Purchase history pagination">
+            <ul class="pagination justify-content-center">
+                {% if orders.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('auth.purchase_history', page=orders.prev_num) }}">Previous</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in orders.iter_pages(left_edge=2, left_current=2, right_current=2, right_edge=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == orders.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('auth.purchase_history', page=page_num) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if orders.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('auth.purchase_history', page=orders.next_num) }}">Next</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">
+            You haven't made any purchases yet.
+            <a href="{{ url_for('products.index') }}" class="alert-link">Browse our products</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

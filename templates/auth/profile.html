@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-300px)] flex justify-center items-start py-12">
+    <div class="bg-white shadow-lg rounded-lg p-8 w-full max-w-2xl">
+        <div class="text-center mb-8">
+            {% if user.profile_picture %}
+            <div class="mb-4 flex justify-center">
+                <img src="{{ user.profile_picture }}" 
+                     alt="Profile Picture" 
+                     class="w-32 h-32 rounded-full shadow-lg object-cover">
+            </div>
+            {% else %}
+            <div class="mb-4 flex justify-center">
+                <div class="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center">
+                    <i class="fas fa-user text-4xl text-gray-400"></i>
+                </div>
+            </div>
+            {% endif %}
+            <h1 class="text-2xl font-bold text-gray-800">
+                {{ user.first_name }} {{ user.last_name }}
+            </h1>
+            <p class="text-gray-600">{{ user.email }}</p>
+            {% if user.provider %}
+            <p class="text-sm text-gray-500 mt-1">
+                Connected with {{ user.provider|title }}
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="border-t border-gray-200 pt-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Account Details</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Username</label>
+                            <p class="text 
+-gray-800">{{ user.username }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Member Since</label>
+                            <p class="text-gray-800">{{ user.created_at.strftime('%B %d, %Y') }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Contact Information</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Email Address</label>
+                            <p class="text-gray-800">{{ user.email }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Phone Number</label>
+                            <p class="text-gray-800">{{ user.phone_number or 'Not provided' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 pt-6 mt-6">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">Address Information</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">Address Line 1</label>
+                    <p class="text-gray-800">{{ user.address_line1 or 'Not provided' }}</p>
+                </div>
+                {% if user.address_line2 %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">Address Line 2</label>
+                    <p class="text-gray-800">{{ user.address_line2 }}</p>
+                </div>
+                {% endif %}
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">City</label>
+                        <p class="text-gray-800">{{ user.city or 'Not provided' }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">State</label>
+                        <p class="text-gray-800">{{ user.state or 'Not provided' }}</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">Postal Code</label>
+                    <p class="text-gray-800">{{ user.postal_code or 'Not provided' }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 pt-6 mt-6">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">Quick Actions</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <a href="{{ url_for('orders.order_history') }}" class="flex items-center justify-center space-x-2 bg-blue-50 text-blue-700 px-4 py-3 rounded-lg hover:bg-blue-100 transition duration-300">
+                    <i class="fas fa-shopping-bag"></i>
+                    <span>View Order History</span>
+                </a>
+                <a href="{{ url_for('cart.view_cart') }}" class="flex items-center justify-center space-x-2 bg-green-50 text-green-700 px-4 py-3 rounded-lg hover:bg-green-100 transition duration-300">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>View Cart</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="mt-8 flex justify-center space-x-4">
+            <a href="{{ url_for('auth.edit_profile') }}" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-300">
+                Edit Profile
+            </a>
+            <a href="{{ url_for('auth.edit_profile', section='password') }}" class="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition duration-300">
+                Change Password
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

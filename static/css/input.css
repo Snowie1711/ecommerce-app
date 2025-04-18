@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+#search-results {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+}
+
+#search-results::-webkit-scrollbar {
+    width: 4px;
+}
+
+#search-results::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#search-results::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 2px;
+}
+
+#search-results::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Cart badge styling - improved positioning */
+#cart-badge {
+    transition: all 0.3s ease;
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    transform-origin: center;
+}
+
+#cart-badge.hidden {
+    transform: scale(0);
+    opacity: 0;
+}
+
+/* Make sure cart icon container has correct positioning for the badge */
+.cart-icon-container {
+    position: relative;
+    display: inline-block;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Custom components */
+@layer components {
+    .btn-primary {
+        @apply bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition duration-200;
+    }
+    
+    .btn-secondary {
+        @apply border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-800 px-6 py-2 rounded-lg transition duration-200;
+    }
+}

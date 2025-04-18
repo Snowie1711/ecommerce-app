@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to Our Store{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-12">
+    <!-- Hero Section -->
+    <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-xl text-white p-12 mb-12">
+        <div class="max-w-3xl mx-auto text-center">
+            <h1 class="text-4xl md:text-5xl font-bold mb-6">Welcome to Our Online Store</h1>
+            <p class="text-xl mb-8">Discover our amazing collection of products</p>
+            <a href="{{ url_for('products.index') }}"
+               class="inline-block bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition duration-300">
+                Shop Now
+            </a>
+        </div>
+    </div>
+
+    <!-- Categories Section -->
+    <div class="mb-16">
+        <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Shop by Category</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {% for category in categories %}
+            <a href="{{ url_for('products.category_view', category_name=category.name) }}"
+               class="group block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition duration-300">
+                <div class="aspect-w-16 aspect-h-9 bg-gray-100">
+                    <div class="flex items-center justify-center h-48 bg-gradient-to-br from-blue-50 to-indigo-50">
+                        <i class="fas fa-box text-4xl text-blue-600 group-hover:scale-110 transition-transform duration-300"></i>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition">{{ category.name }}</h3>
+                    <p class="text-gray-600 mt-2">{{ category.product_count }} Products</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Discounted Products Section -->
+    <div class="mb-16">
+        <h2 class="text-3xl font-bold text-gray-900 mb-8">
+            <span class="text-red-600">On Sale</span> Products
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {% for product in discounted_products %}
+                {% include "products/_featured_product_list.html" %}
+            {% else %}
+            <div class="col-span-full text-center py-8 text-gray-600">
+                No discounted products found.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Popular Products Section -->
+    <div class="mb-16">
+        <div class="flex justify-between items-center mb-8">
+            <h2 class="text-3xl font-bold text-gray-900">Popular Products</h2>
+            <div class="flex items-center space-x-4">
+                <label for="category-filter" class="text-gray-700">Filter by Category:</label>
+                <select id="category-filter"
+                        class="border border-gray-300 rounded-lg px-4 py-2"
+                        onchange="window.location.href='{{ url_for('main.home') }}' + (this.value ? '?category_id=' + this.value : '')">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {% for product in popular_products %}
+                {% include "products/_featured_product_list.html" %}
+            {% else %}
+            <div class="col-span-full text-center py-8 text-gray-600">
+                No popular products found in this category yet.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Featured Products Section -->
+    <div>
+        <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Featured Products</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {% for product in featured_products %}
+                {% include "products/_featured_product_list.html" %}
+            {% endfor %}
+        </div>
+        <div class="text-center mt-8">
+            <a href="{{ url_for('products.index') }}"
+               class="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
+                View All Products
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

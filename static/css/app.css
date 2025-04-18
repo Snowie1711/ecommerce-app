@@ -1,0 +1,134 @@
+/* Notification Styles */
+#notification-dropdown {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#notification-list .notification-item {
+    transition: background-color 0.2s;
+}
+
+#notification-list .notification-item:hover {
+    background-color: #f3f4f6;
+}
+
+#notification-list .notification-item.unread {
+    border-left: 3px solid #3b82f6;
+}
+
+#notification-badge {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+/* Custom application styles */
+
+/* ZaloPay form styles */
+.zalopay-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #374151;
+}
+
+.zalopay-form input,
+.zalopay-form select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+}
+
+.zalopay-form input:focus,
+.zalopay-form select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Payment status indicators */
+.payment-status {
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-weight: 500;
+}
+
+.payment-status.pending {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.payment-status.success {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.payment-status.failed {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+/* Loading animation */
+.processing-payment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.processing-payment .spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Error message improvements */
+.error-message {
+    background-color: #fee2e2;
+    border-left: 4px solid #ef4444;
+    color: #991b1b;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 0.375rem;
+}
+
+.error-message .title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.error-message .details {
+    font-size: 0.875rem;
+}
+
+.error-message .suggestions {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Order address display */
+.order-address {
+    line-height: 1.5;
+    color: #374151;
+    white-space: pre-line;
+    margin: 0;
+}

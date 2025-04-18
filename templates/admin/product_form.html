@@ -1,0 +1,868 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if product %}Edit Product{% else %}Create Product{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto">
+    <!-- Admin Navigation -->
+    <div class="bg-white shadow-md rounded-lg mb-8">
+        <div class="flex overflow-x-auto">
+            <a href="{{ url_for('admin.dashboard') }}"
+               class="px-6 py-3 text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                Dashboard
+            </a>
+            <a href="{{ url_for('admin.manage_products') }}"
+               class="px-6 py-3 text-blue-600 border-b-2 border-blue-600 font-semibold whitespace-nowrap">
+                Products
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <h1 class="text-2xl font-bold mb-8">
+            {% if product %}Edit Product: {{ product.name }}{% else %}Create New Product{% endif %}
+        </h1>
+
+        <form method="POST" 
+              action="{{ url_for('admin.edit_product', id=product.id) if product else url_for('admin.create_product') }}"
+              enctype="multipart/form-data"
+              class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Basic Information -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="name" class="block text-gray-700 font-semibold mb-2">Product Name</label>
+                    <input type="text" 
+                           id="name" 
+                           name="name" 
+                           value="{{ product.name if product else '' }}"
+                           required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="sku" class="block text-gray-700 font-semibold mb-2">SKU</label>
+                    <input type="text" 
+                           id="sku" 
+                           name="sku" 
+                           value="{{ product.sku if product else '' }}"
+                           required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Price -->
+            <div>
+                <label for="price" class="block text-gray-700 font-semibold mb-2">Price (VNĐ)</label>
+                <input type="number"
+                       id="price"
+                       name="price"
+                       value="{{ product.price if product else '' }}"
+                       min="0"
+                       required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            </div>
+
+            <!-- Inventory Type Selection -->
+            <div class="space-y-4">
+                <label class="block text-gray-700 font-semibold mb-2">Inventory Type</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <label class="flex items-center space-x-2">
+                        <input type="radio" name="inventory_type" value="regular" class="text-blue-600" required {% if product and product.inventory_type == 'regular' %}checked{% endif %}>
+                        <span>Regular</span>
+                    </label>
+                    <label class="flex items-center space-x-2">
+                        <input type="radio" name="inventory_type" value="size" class="text-blue-600" {% if product and product.inventory_type == 'size' %}checked{% endif %}>
+                        <span>Size</span>
+                    </label>
+                    <label class="flex items-center space-x-2">
+                        <input type="radio" name="inventory_type" value="color" class="text-blue-600" {% if product and product.inventory_type == 'color' %}checked{% endif %}>
+                        <span>Color</span>
+                    </label>
+                    <label class="flex items-center space-x-2">
+                        <input type="radio" name="inventory_type" value="both" class="text-blue-600" {% if product and product.inventory_type == 'both' %}checked{% endif %}>
+                        <span>Size + Color</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Regular Stock -->
+            <div id="regular-stock" class="inventory-section" style="display: none;">
+                <label for="stock" class="block text-gray-700 font-semibold mb-2">Stock Quantity</label>
+                <input type="number"
+                       id="regular_stock"
+                       name="regular_stock"
+                       value="{{ product.stock if product and product.inventory_type == 'regular' else 0 }}"
+                       min="0"
+                       required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            </div>
+
+            <!-- Size Management -->
+            <div id="size-management" class="inventory-section space-y-4" style="display: none;">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold">Size Management</h3>
+                    <button type="button"
+                            onclick="addSizeEntry()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        ➕ Add Size
+                    </button>
+                </div>
+                <div id="sizes-container" class="space-y-4">
+                    <!-- Size entries will be added here -->
+                </div>
+            </div>
+
+            <!-- Color Management -->
+            <div id="color-management" class="inventory-section space-y-4" style="display: none;">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold">Color Management</h3>
+                    <button type="button"
+                            onclick="addColorEntry()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        ➕ Add Color
+                    </button>
+                </div>
+                <div id="colors-container" class="space-y-4">
+                    <!-- Color entries will be added here -->
+                </div>
+            </div>
+
+            <!-- Both (Size + Color) Management -->
+            <div id="variant-management" class="inventory-section space-y-4" style="display: none;">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold">Size + Color Management</h3>
+                    <button type="button"
+                            onclick="addVariantEntry()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        ➕ Add Variant
+                    </button>
+                </div>
+                <div id="variants-container" class="space-y-4">
+                    <!-- Variant entries will be added here -->
+                </div>
+            </div>
+
+            <!-- Category -->
+            <div>
+                <label for="category_id" class="block text-gray-700 font-semibold mb-2">Category</label>
+                <select id="category_id" 
+                        name="category_id"
+                        required
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                    <option value="">Select a category</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}"
+                            {% if product and product.category_id == category.id %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label for="description" class="block text-gray-700 font-semibold mb-2">Description</label>
+                <textarea id="description" 
+                          name="description" 
+                          rows="4"
+                          required
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">{{ product.description if product else '' }}</textarea>
+            </div>
+
+            <!-- Images -->
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Product Images</label>
+                
+                <!-- Existing Images -->
+                {% if product and product.images %}
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4" id="existing-images">
+                    {% for image in product.images %}
+                    <div class="relative group" data-image-id="{{ image.id }}">
+                        <img src="{{ url_for('static', filename='uploads/' + image.image_url) }}"
+                             alt="{{ product.name }}"
+                             class="w-full aspect-square object-cover rounded-lg border-2 {% if image.is_primary %}border-blue-500{% else %}border-transparent{% endif %}">
+                        <input type="hidden" name="existing_images" value="{{ image.id }}">
+                        
+                        <!-- Image Controls -->
+                        <div class="absolute top-2 right-2 flex gap-2">
+                            {% if not image.is_primary %}
+                            <button type="button"
+                                    onclick="makePrimary({{ product.id }}, {{ image.id }})"
+                                    class="bg-blue-500 text-white px-2 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                Make Primary
+                            </button>
+                            {% endif %}
+                            <button type="button"
+                                    onclick="deleteImage({{ product.id }}, {{ image.id }})"
+                                    class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm shadow-sm">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- New Image Upload -->
+                <div class="mb-4">
+                    <input type="file" 
+                           id="images" 
+                           name="images"
+                           multiple
+                           accept="image/*"
+                           class="block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <p class="text-sm text-gray-500 mt-1">You can select multiple images. First image will be set as primary if no primary image exists.</p>
+                </div>
+                
+                <!-- Image Preview -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="image-preview"></div>
+            </div>
+
+            <!-- Status -->
+            <div>
+                <label class="flex items-center">
+                    <input type="checkbox" 
+                           name="is_active" 
+                           value="1"
+                           {% if not product or product.is_active %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span class="ml-2 text-gray-700">Product is active and visible in store</span>
+                </label>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex justify-end space-x-4">
+                <a href="{{ url_for('admin.manage_products') }}"
+                   class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {% if product %}Update Product{% else %}Create Product{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Common constants
+const commonColors = [
+    { name: 'Black', code: '#000000' },
+    { name: 'White', code: '#FFFFFF' },
+    { name: 'Red', code: '#FF0000' },
+    { name: 'Blue', code: '#0000FF' },
+    { name: 'Green', code: '#008000' },
+    { name: 'Yellow', code: '#FFFF00' },
+    { name: 'Navy', code: '#000080' },
+    { name: 'Gray', code: '#808080' },
+    { name: 'Brown', code: '#8B4513' },
+    { name: 'Pink', code: '#FFC0CB' }
+];
+
+const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+// Function to handle inventory type changes
+function updateInventoryType(type) {
+    // Hide all inventory sections without clearing their data
+    document.querySelectorAll('.inventory-section').forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Show the selected section
+    switch(type) {
+        case 'regular':
+            document.getElementById('regular-stock').style.display = 'block';
+            break;
+        case 'size':
+            document.getElementById('size-management').style.display = 'block';
+            break;
+        case 'color':
+            document.getElementById('color-management').style.display = 'block';
+            break;
+        case 'both':
+            document.getElementById('variant-management').style.display = 'block';
+            break;
+    }
+
+    // If in edit mode, ensure the radio button stays on the original type
+    {% if product %}
+    const originalType = '{{ product.inventory_type }}';
+    const radio = document.querySelector(`input[name="inventory_type"][value="${originalType}"]`);
+    if (radio) {
+        radio.checked = true;
+    }
+    {% endif %}
+}
+
+// Function to add size entry
+function addSizeEntry(size = '', stock = '') {
+    const existingSizes = new Set(Array.from(document.getElementsByName('sizes[]')).map(el => el.value));
+    if (size && existingSizes.has(size)) {
+        return false;
+    }
+
+    const entry = document.createElement('div');
+    entry.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 border border-gray-200 rounded-lg';
+    entry.innerHTML = `
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Size</label>
+            <select name="sizes[]" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" required>
+                <option value="">Select Size</option>
+                ${sizeOptions.map(opt => `
+                    <option value="${opt}" ${size === opt ? 'selected' : ''}>${opt}</option>
+                `).join('')}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+            <input type="number"
+                   name="size_stocks[]"
+                   value="${stock}"
+                   min="0"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                   required>
+        </div>
+        <div class="flex items-end">
+            <button type="button"
+                    onclick="removeEntry(this)"
+                    class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                ❌ Remove
+            </button>
+        </div>
+    `;
+document.getElementById('sizes-container').appendChild(entry);
+    
+// Add change event listener for size selection
+const select = entry.querySelector('select[name="sizes[]"]');
+select.addEventListener('change', function() {
+    const selectedSize = this.value;
+    if (selectedSize && existingSizes.has(selectedSize)) {
+        alert('This size has already been added');
+        this.value = '';
+    }
+});
+
+return true;
+}
+
+// Function to add color entry
+function addColorEntry(name = '', code = '', stock = '') {
+    const existingColors = new Set(Array.from(document.getElementsByName('color_names[]')).map(el => el.value));
+    if (name && existingColors.has(name)) {
+        return false;
+    }
+
+    const entry = document.createElement('div');
+    entry.className = 'grid grid-cols-1 md:grid-cols-4 gap-4 items-center p-4 border border-gray-200 rounded-lg';
+    entry.innerHTML = `
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Color</label>
+            <select name="color_names[]" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" required>
+                <option value="">Select Color</option>
+                ${commonColors.map(color => `
+                    <option value="${color.name}" data-code="${color.code}" ${name === color.name ? 'selected' : ''}>
+                        ${color.name}
+                    </option>
+                `).join('')}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Color Code</label>
+            <div class="flex gap-2 items-center">
+                <input type="color"
+                       class="h-[42px] w-16"
+                       value="${code || '#000000'}"
+                       onchange="this.nextElementSibling.value = this.value">
+                <input type="text"
+                       name="color_codes[]"
+                       value="${code}"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                       required>
+            </div>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+            <input type="number"
+                   name="color_stocks[]"
+                   value="${stock}"
+                   min="0"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                   required>
+        </div>
+        <div class="flex items-end">
+            <button type="button"
+                    onclick="removeEntry(this)"
+                    class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                ❌ Remove
+            </button>
+        </div>
+    `;
+
+    document.getElementById('colors-container').appendChild(entry);
+
+    // Add change event listener for color selection
+    const select = entry.querySelector('select[name="color_names[]"]');
+    select.addEventListener('change', function() {
+        const selectedColor = this.value;
+        if (selectedColor) {
+            if (existingColors.has(selectedColor)) {
+                alert('This color has already been added');
+                this.value = '';
+                return;
+            }
+            const option = this.options[this.selectedIndex];
+            const colorCode = option.dataset.code;
+            const codeInput = this.closest('.grid').querySelector('[name="color_codes[]"]');
+            const colorPicker = this.closest('.grid').querySelector('input[type="color"]');
+            codeInput.value = colorCode;
+            colorPicker.value = colorCode;
+        }
+    });
+
+    return true;
+}
+
+// Function to add variant entry (size + color)
+function addVariantEntry(size = '', color = '', code = '', stock = '') {
+    const existingVariants = new Set(
+        Array.from(document.querySelectorAll('#variants-container .variant-row'))
+        .map(row => `${row.querySelector('[name="variant_sizes[]"]').value}-${row.querySelector('[name="variant_colors[]"]').value}`)
+    );
+
+    if (size && color && existingVariants.has(`${size}-${color}`)) {
+        return false;
+    }
+
+    const entry = document.createElement('div');
+    entry.className = 'variant-row grid grid-cols-1 md:grid-cols-5 gap-4 items-center p-4 border border-gray-200 rounded-lg';
+    entry.innerHTML = `
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Size</label>
+            <select name="variant_sizes[]" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" required>
+                <option value="">Select Size</option>
+                ${sizeOptions.map(opt => `
+                    <option value="${opt}" ${size === opt ? 'selected' : ''}>${opt}</option>
+                `).join('')}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Color</label>
+            <select name="variant_colors[]" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" required>
+                <option value="">Select Color</option>
+                ${commonColors.map(c => `
+                    <option value="${c.name}" data-code="${c.code}" ${color === c.name ? 'selected' : ''}>
+                        ${c.name}
+                    </option>
+                `).join('')}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Color Code</label>
+            <div class="flex gap-2 items-center">
+                <input type="color"
+                       class="h-[42px] w-16"
+                       value="${code || '#000000'}"
+                       onchange="this.nextElementSibling.value = this.value">
+                <input type="text"
+                       name="variant_codes[]"
+                       value="${code}"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                       required>
+            </div>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+            <input type="number"
+                   name="variant_stocks[]"
+                   value="${stock}"
+                   min="0"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                   required>
+        </div>
+        <div class="flex items-end">
+            <button type="button"
+                    onclick="removeEntry(this)"
+                    class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                ❌ Remove
+            </button>
+        </div>
+    `;
+
+    document.getElementById('variants-container').appendChild(entry);
+
+    // Add change event listeners for variant selection
+    const sizeSelect = entry.querySelector('[name="variant_sizes[]"]');
+    const colorSelect = entry.querySelector('[name="variant_colors[]"]');
+    
+    function checkDuplicate() {
+        const currentSize = sizeSelect.value;
+        const currentColor = colorSelect.value;
+        if (currentSize && currentColor) {
+            const variant = `${currentSize}-${currentColor}`;
+            if (existingVariants.has(variant)) {
+                alert('This size and color combination already exists');
+                sizeSelect.value = '';
+                colorSelect.value = '';
+                return true;
+            }
+            existingVariants.add(variant);
+        }
+        return false;
+    }
+
+    sizeSelect.addEventListener('change', checkDuplicate);
+    colorSelect.addEventListener('change', function() {
+        if (!checkDuplicate() && this.value) {
+            const option = this.options[this.selectedIndex];
+            const colorCode = option.dataset.code;
+            const codeInput = this.closest('.grid').querySelector('[name="variant_codes[]"]');
+            const colorPicker = this.closest('.grid').querySelector('input[type="color"]');
+            codeInput.value = colorCode;
+            colorPicker.value = colorCode;
+        }
+    });
+
+    return true;
+}
+
+// Function to remove an entry
+function removeEntry(button) {
+    button.closest('.grid').remove();
+}
+
+// Form validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    // Get selected inventory type
+    const inventoryType = document.querySelector('input[name="inventory_type"]:checked')?.value;
+    if (!inventoryType) {
+        e.preventDefault();
+        alert('Please select an inventory type');
+        return;
+    }
+
+    let totalStock = 0;
+
+    // Validate based on inventory type
+    switch(inventoryType) {
+        case 'regular':
+            const stock = parseInt(document.getElementById('regular_stock').value);
+            if (isNaN(stock) || stock < 0) {
+                e.preventDefault();
+                alert('Stock must be a non-negative number');
+                return;
+            }
+            totalStock = stock;
+            break;
+
+        case 'size':
+            const sizes = document.getElementsByName('sizes[]');
+            const sizeStocks = document.getElementsByName('size_stocks[]');
+            if (sizes.length === 0) {
+                e.preventDefault();
+                alert('Please add at least one size');
+                return;
+            }
+
+            const selectedSizes = new Set();
+            for (let i = 0; i < sizes.length; i++) {
+                const size = sizes[i].value;
+                const stock = parseInt(sizeStocks[i].value);
+
+                if (!size) {
+                    e.preventDefault();
+                    alert('Please select a size for all entries');
+                    return;
+                }
+
+                if (selectedSizes.has(size)) {
+                    e.preventDefault();
+                    alert('Duplicate sizes are not allowed');
+                    return;
+                }
+
+                if (isNaN(stock) || stock < 0) {
+                    e.preventDefault();
+                    alert('Stock must be a non-negative number for all sizes');
+                    return;
+                }
+
+                totalStock += stock;
+                selectedSizes.add(size);
+            }
+            break;
+
+        case 'color':
+            const colors = document.getElementsByName('color_names[]');
+            const colorCodes = document.getElementsByName('color_codes[]');
+            const colorStocks = document.getElementsByName('color_stocks[]');
+            
+            if (colors.length === 0) {
+                e.preventDefault();
+                alert('Please add at least one color');
+                return;
+            }
+
+            const selectedColors = new Set();
+            for (let i = 0; i < colors.length; i++) {
+                const color = colors[i].value;
+                const code = colorCodes[i].value;
+                const stock = parseInt(colorStocks[i].value);
+
+                if (!color) {
+                    e.preventDefault();
+                    alert('Please select a color for all entries');
+                    return;
+                }
+
+                if (!code) {
+                    e.preventDefault();
+                    alert('Color code is required for all colors');
+                    return;
+                }
+
+                if (selectedColors.has(color)) {
+                    e.preventDefault();
+                    alert('Duplicate colors are not allowed');
+                    return;
+                }
+
+                if (isNaN(stock) || stock < 0) {
+                    e.preventDefault();
+                    alert('Stock must be a non-negative number for all colors');
+                    return;
+                }
+
+                totalStock += stock;
+                selectedColors.add(color);
+            }
+            break;
+
+        case 'both':
+            const variantSizes = document.getElementsByName('variant_sizes[]');
+            const variantColors = document.getElementsByName('variant_colors[]');
+            const variantCodes = document.getElementsByName('variant_codes[]');
+            const variantStocks = document.getElementsByName('variant_stocks[]');
+
+            if (variantSizes.length === 0) {
+                e.preventDefault();
+                alert('Please add at least one size + color combination');
+                return;
+            }
+
+            const selectedVariants = new Set();
+            for (let i = 0; i < variantSizes.length; i++) {
+                const size = variantSizes[i].value;
+                const color = variantColors[i].value;
+                const code = variantCodes[i].value;
+                const stock = parseInt(variantStocks[i].value);
+
+                if (!size || !color) {
+                    e.preventDefault();
+                    alert('Please select both size and color for all entries');
+                    return;
+                }
+
+                if (!code) {
+                    e.preventDefault();
+                    alert('Color code is required for all colors');
+                    return;
+                }
+
+                const variant = `${size}-${color}`;
+                if (selectedVariants.has(variant)) {
+                    e.preventDefault();
+                    alert('Duplicate size and color combinations are not allowed');
+                    return;
+                }
+
+                if (isNaN(stock) || stock < 0) {
+                    e.preventDefault();
+                    alert('Stock must be a non-negative number for all variants');
+                    return;
+                }
+
+                totalStock += stock;
+                selectedVariants.add(variant);
+            }
+            break;
+    }
+
+    // Validate total stock
+    if (totalStock < 1) {
+        e.preventDefault();
+        alert('Total stock must be at least 1');
+        return;
+    }
+});
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function () {
+    {% if product %}
+        const inventoryType = '{{ product.inventory_type }}';
+        // 1. Show correct form section first
+        updateInventoryType(inventoryType);
+        
+        // 2. Then populate existing data based on type
+        if (inventoryType === 'size') {
+            {% for size in product.sizes %}
+                addSizeEntry('{{ size.size }}', '{{ size.stock }}');
+            {% endfor %}
+        } else if (inventoryType === 'color') {
+            {% for color in product.colors %}
+                addColorEntry('{{ color.color_name }}', '{{ color.color_code }}', '{{ color.stock }}');
+            {% endfor %}
+        } else if (inventoryType === 'both') {
+            {% for variant in product.variants %}
+                addVariantEntry('{{ variant.size }}', '{{ variant.color_name }}', '{{ variant.color_code }}', '{{ variant.stock }}');
+            {% endfor %}
+        }
+        
+    {% else %}
+        // For new product mode
+        const regularRadio = document.querySelector('input[name="inventory_type"][value="regular"]');
+        if (regularRadio) {
+            regularRadio.checked = true;
+            updateInventoryType('regular');
+        }
+    {% endif %}
+
+    // 4. Update total stock after all data is populated
+    updateInStock();
+
+    // Attach event listeners for inventory type changes
+    document.querySelectorAll('input[name="inventory_type"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const newType = e.target.value;
+            updateInventoryType(newType);
+            // Update total stock after form section is shown
+            updateInStock();
+        });
+    });
+});
+
+// Image preview functionality
+document.getElementById('images').addEventListener('change', function(e) {
+    const previewContainer = document.getElementById('image-preview');
+    previewContainer.innerHTML = '';
+    
+    Array.from(e.target.files).forEach(file => {
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.createElement('div');
+                preview.className = 'relative';
+                preview.innerHTML = `
+                    <img src="${e.target.result}"
+                         class="w-full aspect-square object-cover rounded-lg border-2 border-transparent">
+                `;
+                previewContainer.appendChild(preview);
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+});
+
+// Image management functions
+function deleteImage(productId, imageId) {
+    if (confirm('Are you sure you want to delete this image?')) {
+        fetch(`/admin/products/${productId}/images/${imageId}/delete`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelector(`[data-image-id="${imageId}"]`).remove();
+            } else {
+                alert('Error deleting image');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting image');
+        });
+    }
+}
+
+function makePrimary(productId, imageId) {
+    fetch(`/admin/products/${productId}/images/${imageId}/make-primary`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update border styling
+            document.querySelectorAll('#existing-images img').forEach(img => {
+                img.classList.remove('border-blue-500');
+                img.classList.add('border-transparent');
+            });
+            const newPrimaryImg = document.querySelector(`[data-image-id="${imageId}"] img`);
+            newPrimaryImg.classList.remove('border-transparent');
+            newPrimaryImg.classList.add('border-blue-500');
+        } else {
+            alert('Error updating primary image');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating primary image');
+    });
+}
+</script>
+<!-- Hidden in_stock field -->
+<input type="hidden" name="in_stock" id="in-stock-field" value="0">
+<script>
+    function updateInStock() {
+        const inventoryType = document.querySelector('input[name="inventory_type"]:checked')?.value;
+        let totalStock = 0;
+    
+        if (inventoryType === 'regular') {
+            const stock = parseInt(document.getElementById('regular_stock')?.value);
+            if (!isNaN(stock)) totalStock = stock;
+        } else if (inventoryType === 'size') {
+            const sizeStocks = document.getElementsByName('size_stocks[]');
+            sizeStocks.forEach(input => {
+                const val = parseInt(input.value);
+                if (!isNaN(val)) totalStock += val;
+            });
+        } else if (inventoryType === 'color') {
+            const colorStocks = document.getElementsByName('color_stocks[]');
+            colorStocks.forEach(input => {
+                const val = parseInt(input.value);
+                if (!isNaN(val)) totalStock += val;
+            });
+        } else if (inventoryType === 'both') {
+            const variantStocks = document.getElementsByName('variant_stocks[]');
+            variantStocks.forEach(input => {
+                const val = parseInt(input.value);
+                if (!isNaN(val)) totalStock += val;
+            });
+        }
+    
+        document.getElementById('in-stock-field').value = totalStock;
+    }
+    
+    // Gọi trước khi submit
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            updateInStock();
+        });
+    }
+    </script>
+    
+{% endblock %}
